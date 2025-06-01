@@ -106,7 +106,10 @@ android.minapi = 28
 
 # (int) Android SDK version to use
 #android.sdk = 20
-
+android.sdk_path = /home/runner/android
+android.ndk_path = /home/runner/android/ndk/25.2.9519653
+android.ndk = 25b
+android.sdk = 36.0.0
 # (str) Android NDK version to use
 #android.ndk = 23b
 
