@@ -83,6 +83,7 @@ jobs:
             automake
           sudo apt-get install libtool automake autoconf
           touch configure.ac
+          touch Makefile.am
 
           echo 'AC_INIT([example], [0.1])
           AM_INIT_AUTOMAKE
