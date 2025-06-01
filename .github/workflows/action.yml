@@ -82,9 +82,17 @@ jobs:
             libssl-dev \
             automake
           sudo apt-get install libtool automake autoconf
-          aclocal -I m4
-          libtoolize --force --copy
-          autoreconf --install --force
+          touch configure.ac
+
+          echo 'AC_INIT([example], [0.1])
+          AM_INIT_AUTOMAKE
+          AC_PROG_CC
+          AC_CONFIG_FILES([Makefile])
+          AC_OUTPUT' > configure.ac
+
+          aclocal
+          autoconf
+          automake --add-missing
 
       # Set up Java 17 required by Gradle
       - name: Setup Java 17 required by Gradle
