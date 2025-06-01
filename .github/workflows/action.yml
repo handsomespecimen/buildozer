@@ -9,15 +9,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-
-      #used to cache dependencies with a timeout
-      - name: Get Date
+      
+      - name: get date
         id: get-date
         run: |
           echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
         shell: bash
 
-      - name: Cache Buildozer global directory
+      - name: cache global directory
         uses: actions/cache@v2
         with:
           path: .
@@ -28,14 +27,14 @@ jobs:
           path: .buildozer
           key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build with Buildozer
+      - name: build
         uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
         with:
-          command: pip3 install --user --upgrade Cython==0.29.33 virtualenv; buildozer android debug
+          command: pip3 install --user --upgrade cython==0.29.33 virtualenv; buildozer android debug
           buildozer_version: stable
 
-      - name: Upload artifacts
+      - name: upload
         uses: actions/upload-artifact@v2
         with:
           name: package
