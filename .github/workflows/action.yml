@@ -43,7 +43,7 @@ jobs:
             libgdbm-compat-dev liblzma-dev libreadline-dev uuid-dev \
             libgstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             zip unzip autoconf libtool pkg-config libncurses5-dev \
-            libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake m4
+            libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake m4 autopoint
           sudo apt update
           sudo apt upgrade
           export ACLOCAL_FLAGS="-I /usr/share/aclocal"
