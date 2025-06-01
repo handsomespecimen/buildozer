@@ -57,6 +57,7 @@ jobs:
             libffi-dev \
             libssl-dev
           export PATH=$PATH:~/.local/bin/
+          autoupdate
           python3 -m pip install --upgrade \
             Cython==0.29.33 \
             buildozer
