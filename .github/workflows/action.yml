@@ -1,24 +1,42 @@
-name: android build
-
-on: [push, pull_request]
+name: CI
+on:
+  push:
+    branches: [ master ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
-      - name: build with buildozer
+      #used to cache dependencies with a timeout
+      - name: Get Date
+        id: get-date
+        run: |
+          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
+        shell: bash
+
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v2
+        with:
+          path: .
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }} # Replace with your path
+
+      - uses: actions/cache@v2
+        with:
+          path: .buildozer
+          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
+
+      - name: Build with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
-        id: build
+        id: buildozer
         with:
-          workdir: .
-          buildozer_version: git+https://github.com/kivy/buildozer.git@master
+          command: pip3 install --user --upgrade Cython==0.29.33 virtualenv; buildozer android debug
+          buildozer_version: stable
 
-      - name: upload apk
-        uses: actions/upload-artifact@v4
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
         with:
-          name: app-apk
-          path: ${{ steps.build.outputs.filename }}
+          name: package
+          path: ${{ steps.buildozer.outputs.filename }}
