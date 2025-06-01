@@ -106,10 +106,7 @@ android.minapi = 28
 
 # (int) Android SDK version to use
 #android.sdk = 20
-android.sdk_path = /home/runner/android
-android.ndk_path = /home/runner/android/ndk/25.2.9519653
-android.ndk = 25b
-android.sdk = 36.0.0
+
 # (str) Android NDK version to use
 #android.ndk = 23b
 
@@ -137,7 +134,7 @@ android.sdk = 36.0.0
 # agreements. This is intended for automation only. If set to False,
 # the default, you will be shown the license when first running
 # buildozer.
-# android.accept_sdk_license = False
+android.accept_sdk_license = True
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.kivy.android.PythonActivity
