@@ -32,7 +32,7 @@ jobs:
         id: buildozer
         with:
           command: pip3 install --user --upgrade cython==0.29.33 virtualenv; buildozer android debug
-          buildozer_version: stable
+          buildozer_version: git+https://github.com/kivy/buildozer.git@master
 
       - name: upload
         uses: actions/upload-artifact@v4
