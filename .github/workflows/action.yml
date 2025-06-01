@@ -88,7 +88,11 @@ jobs:
       
       - name: Install build-tools 36.0.0
         run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;36.0.0" \
+          "ndk;25.2.9519653"
       
       - name: Install SDK packages
         env:
