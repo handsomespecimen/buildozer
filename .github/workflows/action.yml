@@ -52,6 +52,7 @@ jobs:
             libncursesw5-dev \
             libtinfo6 \
             cmake \
+            aidl \
             libffi-dev \
             libssl-dev
           export PATH=$PATH:~/.local/bin/
