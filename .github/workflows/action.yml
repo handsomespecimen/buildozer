@@ -83,6 +83,11 @@ jobs:
       - name: accept licenses
         run: yes | sdkmanager --licenses
         shell: bash
+
+      - name: install sdk tools
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+        shell: bash
         
       - name: Build with Buildozer
         run: buildozer android debug
