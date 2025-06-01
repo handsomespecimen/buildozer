@@ -81,6 +81,10 @@ jobs:
             libffi-dev \
             libssl-dev \
             automake
+          sudo apt-get install libtool automake autoconf
+          aclocal -I m4
+          libtoolize --force --copy
+          autoreconf --install --force
 
       # Set up Java 17 required by Gradle
       - name: Setup Java 17 required by Gradle
