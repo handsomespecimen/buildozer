@@ -1,74 +1,24 @@
-name: Kivy App to APK
-on:
-  push:
-    branches:
-      - main
-  pull_request:
+name: android build
+
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: checkout
         uses: actions/checkout@v4
 
-      - name: Setup python
-        uses: actions/setup-python@v5
+      - name: build with buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: build
         with:
-          architecture: x64
-          python-version: 3.8
+          workdir: .
+          buildozer_version: stable
 
-      - name: Setup Java 17 required by Gradle
-        uses: actions/setup-java@v4
+      - name: upload apk
+        uses: actions/upload-artifact@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set JAVA_HOME
-        run: echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Prepare virtual environment
-        run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          echo "Using Python==$(python --version)"
-        shell: bash
-
-      - name: Install and upgrade dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git \
-            zip \
-            unzip \
-            openjdk-17-jdk \
-            python3-pip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo6 \
-            cmake \
-            automake \
-            libtool \
-            libffi-dev \
-            libssl-dev
-          export PATH=$PATH:~/.local/bin/
-          python3 -m pip install --upgrade \
-            Cython==0.29.33 \
-            buildozer
-        shell: bash
-
-      - name: Install requirements if present
-        run: |
-          if [ -f requirements.txt ]; then
-            python3 -m pip install -r requirements.txt
-          fi
-        shell: bash
-        
-      - name: Build with Buildozer
-        run: buildozer android debug
-        shell: bash
+          name: app-apk
+          path: ${{ steps.build.outputs.filename }}
