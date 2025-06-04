@@ -1,88 +1,24 @@
-name: CI
+name: Build APK
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
       
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
-        shell: bash
-
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
+      - name: Build Release APK
+        uses: digreatbrian/buildozer-action@v2
         with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-
-      - uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt-get install -y \
-            build-essential git ffmpeg libsdl2-dev libsdl2-image-dev \
-            libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev \
-            libavformat-dev libavcodec-dev libunwind-dev zlib1g-dev \
-            libsqlite3-dev sqlite3 bzip2 libbz2-dev openssl libgdbm-dev \
-            libgdbm-compat-dev liblzma-dev libreadline-dev uuid-dev \
-            libgstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-            zip unzip autoconf libtool pkg-config libncurses5-dev \
-            libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake m4 autopoint
-          sudo apt update
-          sudo apt upgrade
-          export ACLOCAL_FLAGS="-I /usr/share/aclocal"
-          libtoolize --copy --force
-          sudo chown -R $(whoami) .
-
-      - name: Run autoupdate
-        run: |
-          autoupdate || true
-
-      - name: Allow legacy macro workaround
-        run: |
-          if grep -q 'LT_SYS_SYMBOL_USCORE' configure.ac 2>/dev/null; then
-            echo 'm4_pattern_allow([LT_SYS_SYMBOL_USCORE])' >> configure.ac
-          fi
-
-      - name: Setup Java 17 required by Gradle
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.10'
-
-      - name: Install pip dependencies
-        run: |
-          pip install --upgrade pip
-          pip install buildozer cython==0.29.33
-
-      - name: Build with Buildozer
-        id: buildozer
-        run: |
-          yes | buildozer -v android debug
-
-      - name: Upload APK artifact
+          python-version: 3.11
+          buildozer-cmd: buildozer -v android release
+          
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: package
-          path: bin/*.apk
+          name: release
+          path: ./bin/*.apk
