@@ -37,7 +37,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,plyer,ursina
+requirements = python3,kivy==2.1.0,opencv-python-headless==4.6.0.66,numpy,plyer
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
