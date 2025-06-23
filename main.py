@@ -1,192 +1,134 @@
 from kivy.app import App
-from kivy.uix.widget import Widget
-from kivy.core.window import Window
+from kivy.uix.label import Label
 from kivy.clock import Clock
-from kivy.properties import NumericProperty
-import random
-import math
-from ursina import *
+from kivy.uix.boxlayout import BoxLayout
+from kivy.core.window import Window
+from kivy.utils import platform
+from kivy.uix.button import Button
+from kivy.uix.switch import Switch
+from android.permissions import request_permissions, Permission
+import cv2
+import numpy as np
+import time
+from plyer import notification
 
-# Initialize ursina in a way that works with Kivy
-class UrsinaWidget(Widget):
+class FaceDistanceDetector:
+    def __init__(self):
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        self.known_width = 14.0  # Average face width in cm
+        self.focal_length = 700   # Approximate focal length (needs calibration)
+        self.min_distance_cm = 40  # Minimum recommended distance
+        self.last_notification_time = 0
+        self.notification_cooldown = 30  # seconds
+        
+    def detect_face_distance(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        for (x, y, w, h) in faces:
+            # Calculate distance
+            distance = (self.known_width * self.focal_length) / w
+            return distance
+            
+        return None
+
+class FaceDistanceApp(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.ursina_app = Ursina()
-        self.ursina_app.disable_input()  # We'll handle input through Kivy
-        
-        # Create dice entity
-        self.dice = Entity(
-            model='cube',
-            texture='white_cube',
-            color=color.white,
-            scale=0.5,
-            position=(0, 0, 0),
-            collider='box'
-        )
-        
-        # Add numbers to dice faces
-        self.dice_numbers = []
-        for i in range(6):
-            number = Text(
-                text=str(i+1),
-                scale=0.2,
-                parent=self.dice,
-                position=(0, 0, 0.51),
-                rotation=(0, 0, 0),
-                color=color.black
-            )
-            self.dice_numbers.append(number)
-        
-        # Position numbers on each face
-        self.dice_numbers[0].world_position = self.dice.world_position + Vec3(0, 0, 0.51)
-        self.dice_numbers[1].world_position = self.dice.world_position + Vec3(0, 0, -0.51)
-        self.dice_numbers[2].world_position = self.dice.world_position + Vec3(0, 0.51, 0)
-        self.dice_numbers[2].world_rotation = (90, 0, 0)
-        self.dice_numbers[3].world_position = self.dice.world_position + Vec3(0, -0.51, 0)
-        self.dice_numbers[3].world_rotation = (90, 0, 0)
-        self.dice_numbers[4].world_position = self.dice.world_position + Vec3(0.51, 0, 0)
-        self.dice_numbers[4].world_rotation = (0, 90, 0)
-        self.dice_numbers[5].world_position = self.dice.world_position + Vec3(-0.51, 0, 0)
-        self.dice_numbers[5].world_rotation = (0, 90, 0)
-        
-        # Physics setup
-        self.dice.physics = RigidBody(
-            mass=1,
-            friction=0.5,
-            restitution=0.3  # bounciness
-        )
-        self.dice.physics.add_force(Vec3(0, 0, 0))  # Start with no force
-        
-        # Ground plane
-        self.ground = Entity(
-            model='plane',
-            texture='white_cube',
-            color=color.gray,
-            scale=10,
-            position=(0, -1, 0),
-            collider='box'
-        )
-        
-        # Walls to keep dice in view
-        self.walls = [
-            Entity(model='cube', scale=(10, 2, 0.1), position=(0, 0, -2), collider='box', color=color.clear),
-            Entity(model='cube', scale=(10, 2, 0.1), position=(0, 0, 2), collider='box', color=color.clear),
-            Entity(model='cube', scale=(0.1, 2, 10), position=(-2, 0, 0), collider='box', color=color.clear),
-            Entity(model='cube', scale=(0.1, 2, 10), position=(2, 0, 0), collider='box', color=color.clear)
-        ]
-        
-        # Camera setup
-        camera.position = (0, 2, -4)
-        camera.rotation = (20, 0, 0)
-        
-        # Result display
-        self.result_text = Text(
-            text='Shake to roll!',
-            position=(-0.8, 0.4),
-            scale=2,
-            color=color.black
-        )
-        
-        # Variables
-        self.is_rolling = False
-        self.last_shake_time = 0
-        self.last_acceleration = 0
-        
-        # Schedule ursina update
-        Clock.schedule_interval(self.update_ursina, 1/60.)
-    
-    def update_ursina(self, dt):
-        # Update ursina engine
-        self.ursina_app.step()
-        
-        # Check if dice has stopped moving
-        if self.is_rolling and self.dice.physics.velocity.length() < 0.01:
-            self.is_rolling = False
-            self.show_result()
-    
-    def roll_dice(self, intensity=1.0):
-        self.is_rolling = True
-        self.result_text.text = ''
-        
-        # Apply random force and torque
-        force = Vec3(
-            random.uniform(-5, 5) * intensity,
-            random.uniform(2, 5) * intensity,
-            random.uniform(-5, 5) * intensity
-        )
-        
-        torque = Vec3(
-            random.uniform(-50, 50) * intensity,
-            random.uniform(-50, 50) * intensity,
-            random.uniform(-50, 50) * intensity
-        )
-        
-        self.dice.physics.velocity = Vec3(0, 0, 0)
-        self.dice.physics.angular_velocity = Vec3(0, 0, 0)
-        self.dice.position = (0, 0.5, 0)
-        self.dice.rotation = (0, 0, 0)
-        self.dice.physics.add_force(force)
-        self.dice.physics.add_torque(torque)
-    
-    def show_result(self):
-        # Determine which face is up
-        up = Vec3(0, 1, 0)
-        best_dot = -1
-        result = 1
-        
-        # Check each face normal
-        faces = [
-            Vec3(0, 0, 1),   # front (1)
-            Vec3(0, 0, -1),  # back (2)
-            Vec3(0, 1, 0),   # top (3)
-            Vec3(0, -1, 0),  # bottom (4)
-            Vec3(1, 0, 0),   # right (5)
-            Vec3(-1, 0, 0)    # left (6)
-        ]
-        
-        for i, normal in enumerate(faces):
-            # Transform normal by dice rotation
-            rotated_normal = self.dice.world_rotation * normal
-            dot = rotated_normal.dot(up)
-            if dot > best_dot:
-                best_dot = dot
-                result = i + 1
-        
-        self.result_text.text = f'Result: {result}'
-    
-    def on_touch_down(self, touch):
-        # Alternative way to roll by tapping
-        self.roll_dice(intensity=1.0)
-        return True
+        self.detector = FaceDistanceDetector()
+        self.capture = None
+        self.is_running = False
+        self.background_service = False
 
-class DiceRollerApp(App):
     def build(self):
-        # Setup accelerometer if available
-        try:
-            from plyer import accelerometer
-            accelerometer.enable()
-            Clock.schedule_interval(self.check_shake, 1.0 / 60.0)
-        except:
-            print("Accelerometer not available")
+        self.layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
         
-        self.ursina_widget = UrsinaWidget()
-        return self.ursina_widget
-    
-    def check_shake(self, dt):
-        try:
-            from plyer import accelerometer
-            accel = accelerometer.acceleration
+        self.status_label = Label(text="Face Distance Monitor", font_size='20sp')
+        self.distance_label = Label(text="Distance: -- cm", font_size='18sp')
+        self.warning_label = Label(text="", color=(1, 0, 0, 1))
+        
+        self.toggle_btn = Button(text="Start Monitoring", size_hint=(1, 0.2))
+        self.toggle_btn.bind(on_press=self.toggle_monitoring)
+        
+        self.background_switch = Switch(active=self.background_service)
+        self.background_switch.bind(active=self.toggle_background_service)
+        background_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.1))
+        background_layout.add_widget(Label(text="Run in background:"))
+        background_layout.add_widget(self.background_switch)
+        
+        self.layout.add_widget(self.status_label)
+        self.layout.add_widget(self.distance_label)
+        self.layout.add_widget(self.warning_label)
+        self.layout.add_widget(background_layout)
+        self.layout.add_widget(self.toggle_btn)
+        
+        if platform == 'android':
+            request_permissions([Permission.CAMERA, Permission.WAKE_LOCK])
             
-            if accel is not None:
-                x, y, z = accel[0] or 0, accel[1] or 0, accel[2] or 0
-                acceleration = math.sqrt(x*x + y*y + z*z)
+        return self.layout
+
+    def toggle_monitoring(self, instance):
+        if self.is_running:
+            self.stop_monitoring()
+            self.toggle_btn.text = "Start Monitoring"
+        else:
+            self.start_monitoring()
+            self.toggle_btn.text = "Stop Monitoring"
+
+    def toggle_background_service(self, instance, value):
+        self.background_service = value
+
+    def start_monitoring(self):
+        self.capture = cv2.VideoCapture(0)
+        self.is_running = True
+        Clock.schedule_interval(self.update_frame, 1.0 / 30.0)  # 30 FPS
+
+    def stop_monitoring(self):
+        if self.capture:
+            self.capture.release()
+            self.capture = None
+        self.is_running = False
+        Clock.unschedule(self.update_frame)
+        self.distance_label.text = "Distance: -- cm"
+        self.warning_label.text = ""
+
+    def update_frame(self, dt):
+        ret, frame = self.capture.read()
+        if ret:
+            distance = self.detector.detect_face_distance(frame)
+            
+            if distance is not None:
+                self.distance_label.text = f"Distance: {distance:.1f} cm"
                 
-                # Detect sudden acceleration changes
-                if acceleration > 15 and not self.ursina_widget.is_rolling:
-                    self.ursina_widget.roll_dice(intensity=acceleration/15)
-        except:
-            pass
+                if distance < self.detector.min_distance_cm:
+                    self.warning_label.text = "TOO CLOSE! Move back!"
+                    current_time = time.time()
+                    if (current_time - self.detector.last_notification_time) > self.detector.notification_cooldown:
+                        self.show_notification(distance)
+                        self.detector.last_notification_time = current_time
+                else:
+                    self.warning_label.text = ""
+            else:
+                self.distance_label.text = "Distance: No face detected"
+                self.warning_label.text = ""
+
+    def show_notification(self, distance):
+        if platform == 'android':
+            notification.notify(
+                title="Too Close to Screen!",
+                message=f"You're only {distance:.1f} cm away. Move back to at least {self.detector.min_distance_cm} cm.",
+                app_name="Face Distance Alert",
+                timeout=10
+            )
+
+    def on_pause(self):
+        if self.background_service and self.is_running:
+            return True
+        return False
+
+    def on_resume(self):
+        if self.background_service and self.is_running and not self.capture:
+            self.start_monitoring()
 
 if __name__ == '__main__':
-    Window.clearcolor = (0.9, 0.9, 0.9, 1)
-    DiceRollerApp().run()
+    FaceDistanceApp().run()
