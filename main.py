@@ -1,76 +1,89 @@
 from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
 from kivy.uix.label import Label
-import pyttsx3
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.boxlayout import BoxLayout
+from jnius import autoclass
 
-class Keypad(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.code_input = ''
-        self.valid_codes = {
-            '1234': ('ALPHA', self.protocol_alpha),
-            '5678': ('BETA', self.protocol_beta)
-        }
-        self.engine = pyttsx3.init()
+# theoretical Android sensors
+theoretical_sensors = {
+    "TYPE_ACCELEROMETER": 1,
+    "TYPE_ACCELEROMETER_UNCALIBRATED": 35,
+    "TYPE_GRAVITY": 9,
+    "TYPE_LINEAR_ACCELERATION": 10,
+    "TYPE_GYROSCOPE": 4,
+    "TYPE_GYROSCOPE_UNCALIBRATED": 16,
+    "TYPE_ROTATION_VECTOR": 11,
+    "TYPE_GAME_ROTATION_VECTOR": 15,
+    "TYPE_GEOMAGNETIC_ROTATION_VECTOR": 20,
+    "TYPE_SIGNIFICANT_MOTION": 17,
+    "TYPE_STEP_DETECTOR": 18,
+    "TYPE_STEP_COUNTER": 19,
+    "TYPE_AMBIENT_TEMPERATURE": 13,
+    "TYPE_PRESSURE": 6,
+    "TYPE_RELATIVE_HUMIDITY": 12,
+    "TYPE_LIGHT": 5,
+    "TYPE_PROXIMITY": 8,
+    "TYPE_MAGNETIC_FIELD": 2,
+    "TYPE_MAGNETIC_FIELD_UNCALIBRATED": 14,
+    "TYPE_ORIENTATION": 3,
+    "TYPE_POSE_6DOF": 28,
+    "TYPE_HEART_RATE": 21,
+    "TYPE_HEART_BEAT": 31,
+    "TYPE_LOW_LATENCY_OFFBODY_DETECT": 34,
+    "TYPE_DEVICE_PRIVATE_BASE": 65536,
+    "TYPE_MOTION_DETECT": 30,
+    "TYPE_STATIONARY_DETECT": 29,
+    "TYPE_PICK_UP_GESTURE": 25,
+    "TYPE_WRIST_TILT_GESTURE": 26,
+    "TYPE_WAKE_GESTURE": 23,
+    "TYPE_GLANCE_GESTURE": 24,
+    "TYPE_TILT_DETECTOR": 22,
+    "TYPE_HINGE_ANGLE": 36,
+    "TYPE_TEMPERATURE": 7
+}
 
-        self.display = Label(text='Enter Code', font_size=40, size_hint=(1, 0.3))
-        self.add_widget(self.display)
-
-        buttons_layout = BoxLayout()
-        for i in range(1, 10):
-            btn = Button(text=str(i), font_size=32)
-            btn.bind(on_press=self.button_press)
-            buttons_layout.add_widget(btn)
-            if i % 3 == 0:
-                self.add_widget(buttons_layout)
-                buttons_layout = BoxLayout()
-        btn_zero = Button(text='0', font_size=32)
-        btn_zero.bind(on_press=self.button_press)
-        buttons_layout.add_widget(btn_zero)
-        btn_clear = Button(text='Clear', font_size=32)
-        btn_clear.bind(on_press=self.clear_code)
-        buttons_layout.add_widget(btn_clear)
-        btn_enter = Button(text='Enter', font_size=32)
-        btn_enter.bind(on_press=self.check_code)
-        buttons_layout.add_widget(btn_enter)
-        self.add_widget(buttons_layout)
-
-    def button_press(self, instance):
-        if len(self.code_input) < 8:
-            self.code_input += instance.text
-            self.display.text = '*' * len(self.code_input)
-
-    def clear_code(self, instance):
-        self.code_input = ''
-        self.display.text = 'Enter Code'
-
-    def check_code(self, instance):
-        if self.code_input in self.valid_codes:
-            name, func = self.valid_codes[self.code_input]
-            msg = f"PROTOCOL {name} INITIATED"
-            self.display.text = msg
-            self.speak(msg)
-            func()
-        else:
-            self.display.text = "INVALID CODE"
-            self.speak("Invalid code")
-        self.code_input = ''
-
-    def speak(self, text):
-        self.engine.say(text)
-        self.engine.runAndWait()
-
-    def protocol_alpha(self):
-        print("Alpha protocol running preset action")
-
-    def protocol_beta(self):
-        print("Beta protocol running preset action")
-
-class KeypadApp(App):
+class SensorCheckApp(App):
     def build(self):
-        return Keypad()
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Context = autoclass('android.content.Context')
+        Sensor = autoclass('android.hardware.Sensor')
+        SensorManager = autoclass('android.hardware.SensorManager')
+
+        activity = PythonActivity.mActivity
+        sm = activity.getSystemService(Context.SENSOR_SERVICE)
+
+        phone_sensors = {}
+        sensor_list = sm.getSensorList(Sensor.TYPE_ALL)
+        for s in sensor_list.toArray():
+            phone_sensors[s.getName()] = s.getType()
+
+        # compare
+        have = []
+        missing = []
+        extra = []
+
+        for name, stype in theoretical_sensors.items():
+            if stype in phone_sensors.values():
+                have.append(name)
+            else:
+                missing.append(name)
+
+        for pname, ptype in phone_sensors.items():
+            if ptype not in theoretical_sensors.values():
+                extra.append(f"{pname} (type {ptype})")
+
+        # prepare scrollable text
+        text = "=== SENSORS PRESENT ===\n" + "\n".join(have)
+        text += "\n\n=== SENSORS MISSING ===\n" + "\n".join(missing)
+        text += "\n\n=== EXTRA SENSORS (vendor-specific) ===\n" + "\n".join(extra)
+
+        layout = BoxLayout(orientation='vertical')
+        scroll = ScrollView()
+        label = Label(text=text, size_hint_y=None, markup=True)
+        label.bind(texture_size=lambda instance, value: setattr(label, 'height', value[1]))
+        scroll.add_widget(label)
+        layout.add_widget(scroll)
+        return layout
 
 if __name__ == '__main__':
-    KeypadApp().run()
+    SensorCheckApp().run()
