@@ -30,7 +30,7 @@ Config.set("graphics", "resizable", "0")
 tts = None
 def init_tts():
     global tts
-    act = autoclass("org.renpy.android.PythonActivity")
+    act = autoclass("org.kivy.android.PythonActivity")
     ctx = act.mActivity
 
     TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
