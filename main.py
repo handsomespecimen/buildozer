@@ -32,13 +32,12 @@ def init_tts():
     global tts
     act = autoclass("org.kivy.android.PythonActivity")
     ctx = act.mActivity
-
     TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
     tts = TextToSpeech(ctx, None)
+    tts.setPitch(0.1)
+    tts.setSpeechRate(0.5)
 
 def speakf(txt):
-    tts.setPitch(0.6)
-    tts.setSpeechRate(0.6)
     tts.speak(txt, 0, None)
     
 NUM_BARS   = 9
