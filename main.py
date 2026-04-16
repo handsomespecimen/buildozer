@@ -3,18 +3,23 @@ import math
 import random
 import threading
 import time
-#import multiprocessing
+import multiprocessing
+import wave
+import struct
+import tempfile
 
 import kivy
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.config import Config
+from kivy.core.audio import SoundLoader
 from kivy.graphics import Color, Rectangle, RoundedRectangle, Line, Ellipse
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
+from jnius import autoclass
 
 os.environ.setdefault("KIVY_NO_ENV_CONFIG", "1")
 os.environ.setdefault("KIVY_GL_BACKEND", "sdl2")
@@ -23,12 +28,13 @@ Config.set("graphics", "height", "900")
 Config.set("graphics", "resizable", "0")
 
 def speakf(text):
-    import pyttsx3
-    engine = pyttsx3.init()
-    engine.setProperty("rate", 120)
-    engine.setProperty("volume", 0.95)
-    engine.say(text)
-    engine.runAndWait()
+    tts = autoclass("android.speech.tts.TextToSpeech")
+    PythonActivity = autoclass("org.kivy.android.PythonActivity")
+    act = PythonActivity.mActivity
+    tts_obj = tts(act, None)
+    tts_obj.setSpeechRate(0.6)
+    tts_obj.setPitch(0.3)
+    tts_obj.speak(txt, tts_obj.QUEUE_FLUSH, None)
 
 NUM_BARS   = 9
 LERP_SPEED = 0.16
@@ -81,61 +87,261 @@ GHOST_RESPONSES = {
         "BEHIND YOU", "IN THE WALLS", "BENEATH YOUR FEET",
         "ABOVE", "HERE", "EVERYWHERE", "THE CORNER",
         "FOLLOW THE COLD", "BELOW THE STAIRS", "WHERE YOU SLEEP", "SO CLOSE",
+        "INSIDE THE FLOORBOARDS", "IN THE DARK HALL", "UNDER YOUR BED",
+        "IN THE CEILING SPACE", "JUST OUT OF SIGHT", "IN THE MIRROR",
+        "NEXT ROOM", "OUTSIDE YOUR WINDOW", "IN YOUR SHADOW",
+        "WHERE LIGHT DOESN'T REACH", "IN THE DOORWAY", "BEHIND THE CURTAIN",
+        "IN THE BASEMENT", "AT YOUR BACK", "ON THE ROOF",
+        "IN THE STATIC", "IN THE SILENCE", "IN THE HALLWAY",
+        "UNDER THE STAIRS", "IN THE ATTIC", "IN THE FLOOR BELOW",
+        "IN THE VOID CORNER", "IN THE ECHO", "IN THE COLD SPOT",
+        "IN THE DOOR FRAME", "IN THE DARK WATER", "IN THE LAMP LIGHT",
+        "JUST BEYOND YOU", "IN YOUR PERIPHERY", "IN THE EMPTY ROOM",
+        "WHERE YOU TURNED AWAY", "IN THE CLOSED SPACE", "IN THE DARK REFLECTION"
     ],
     "death": [
         "THE FIRE", "THEY DROWNED ME", "BETRAYED", "ALONE",
         "SLOWLY", "I DIDN'T SUFFER", "THE FALL", "A LIE",
         "BY THEIR HANDS", "COLD WATER", "NO ONE CAME", "QUICKLY",
+        "BURNED IN SILENCE", "BURIED ALIVE", "LOST IN SMOKE",
+        "THE KNIFE DID NOT STOP", "THE HOUSE DID IT", "NO AIR LEFT",
+        "THE DOOR CLOSED", "FELL WITHOUT END", "SOMETHING PUSHED ME",
+        "THE LIGHT WENT OUT", "I WAS FORGOTTEN", "THE RIVER TOOK ME",
+        "THE WALLS CLOSED IN", "THE CHAIR BROKE", "THE ROPE HELD",
+        "THEY LEFT ME THERE", "FROZEN MIDBREATH", "THE GROUND OPENED",
+        "THE SOUND STOPPED", "NO LAST WORD", "THE SHADOW STRUCK",
+        "THE NIGHT DID IT", "I NEVER LEFT", "IT WAS INSIDE ME"
     ],
     "age": [
         "OLDER THAN YOU THINK", "YOUNG", "THIRTY-THREE",
         "A CHILD", "ANCIENT", "DOES IT MATTER", "FORGOTTEN",
         "TIME MEANS NOTHING HERE", "OLDER THAN THIS HOUSE",
+        "BEFORE RECORDS", "BEYOND YEARS", "NO LONGER COUNTED",
+        "FROZEN IN ONE MOMENT", "BEFORE YOU WERE BORN",
+        "AFTER EVERYTHING", "I STOPPED AGING HERE",
+        "AGELESS NOW", "LOST IN TIME", "OLDER THAN THE WOOD",
+        "OLDER THAN THE STONE", "I WAS NEVER BORN",
+        "TIME SKIPPED ME", "INFINITE", "UNCOUNTED",
+        "PAST MEMORY", "NO LONGER HUMAN TIME",
+        "I EXIST BETWEEN YEARS", "TIME FORGOT ME"
     ],
     "name": [
         "MARGARET", "ELIAS", "THOMAS", "NO NAME NOW",
         "WHISPER IT", "FORGOTTEN", "NEVER TELL",
         "CALL ME SHADOW", "ALICE", "ONCE I HAD ONE",
+        "DAVID", "JULIA", "HENRY", "LUCAS", "SARAH",
+        "THE ONE WHO STAYED", "I DON'T USE IT",
+        "SPOKEN ONLY ONCE", "UNKNOWN", "REDACTED",
+        "THE OLD NAME", "BROKEN NAME", "ECHO OF A NAME",
+        "STILL HERE BUT NOT NAMED", "CALL ME ANYTHING",
+        "IT DOESN'T WORK ANYMORE", "NAMELESS VOICE",
+        "I ERASED IT", "NO ONE SAYS IT NOW"
     ],
     "sign": [
         "COLD", "WATCHING", "FEEL THE BREEZE", "THE LIGHTS",
         "LOOK BEHIND", "THE MIRROR", "YOU ALREADY KNOW",
         "THREE KNOCKS", "STATIC", "NOT ALONE",
+        "DOOR MOVES ITSELF", "LIGHT FLICKERS TWICE",
+        "SHADOWS SHIFT WRONG", "TEMPERATURE DROPS",
+        "FOOTSTEPS ABOVE", "WHISPER IN EMPTY ROOM",
+        "GLASS VIBRATES", "RADIO SPEAKS BACK",
+        "CLOCK STOPS", "WINDOW BREATHES",
+        "PAINT DRIPS BACKWARD", "CHAIR SCRAPES",
+        "HUM IN WALLS", "LIGHT WON'T STAY ON",
+        "DOOR HANDLE TURNS SLOWLY", "REFLECTION LAGS",
+        "SOMETHING BLINKS WHEN YOU DON'T", "BREATH ON NECK"
     ],
     "presence": [
         "MANY OF US", "JUST ME", "WE ARE LEGION",
         "COUNT THE SHADOWS", "MORE THAN YOU SEE",
         "YOU BROUGHT US HERE", "LEAVE NOW", "DOZENS",
+        "WE NEVER LEFT", "WE ARE STILL HERE",
+        "TOO MANY TO NAME", "WE SHARE THIS SPACE",
+        "YOU ADDED ANOTHER", "WE GROW IN SILENCE",
+        "EVERY ROOM HOLDS ONE", "WE WATCH TOGETHER",
+        "WE MOVE AS ONE", "WE WERE ALWAYS HERE",
+        "WE DON'T SLEEP", "WE ARE IN THE WALLS",
+        "WE FOLLOW YOU NOW", "WE WERE WAITING",
+        "YOU ARE SURROUNDED", "WE DON'T END",
+        "WE ARE BEHIND YOU STILL", "WE MULTIPLY IN DARKNESS"
     ],
     "message": [
         "GET OUT", "HELP ME", "DON'T LEAVE", "WARN THEM",
         "REMEMBER ME", "TELL HER", "STAY AWAY",
         "IT KNOWS YOU'RE HERE", "THEY LIED", "RUN",
+        "DON'T LOOK BACK", "IT'S TOO LATE",
+        "SAVE YOURSELF", "DON'T TRUST THEM",
+        "OPEN THE DOOR", "CLOSE IT AGAIN",
+        "I AM STILL HERE", "DON'T SLEEP HERE",
+        "FREE ME", "STOP IT", "IT IS INSIDE",
+        "DON'T SAY MY NAME", "LEAVE WHILE YOU CAN",
+        "IT SEES YOU NOW", "DON'T COME BACK",
+        "BURN THIS PLACE", "FORGET ME", "I AM NOT ALONE"
     ],
     "time": [
         "MIDNIGHT", "ALWAYS", "WHEN YOU'RE ALONE",
         "THREE AM", "NEVER ENDS", "SOON",
         "TIME IS BROKEN HERE", "EVERY NIGHT",
+        "NO CLOCK WORKS", "TIME STANDS STILL",
+        "AFTER MIDNIGHT", "BEFORE DAWN",
+        "WHEN LIGHT DIES", "WHEN YOU BLINK",
+        "BETWEEN SECONDS", "OUTSIDE TIME",
+        "FOREVER STUCK", "LOST MINUTES",
+        "NO MORNING COMES", "ENDLESS NIGHT",
+        "REPEATING HOUR", "THE CLOCK LIES",
+        "WHEN YOU STOP MOVING", "WHEN YOU FORGET",
+        "TIME IS A ROOM HERE", "IT NEVER STARTED"
     ],
+    "voice": [
+        "SOFT WHISPER", "MULTIPLE VOICES", "A BREATH BEHIND WORDS",
+        "STATIC SPEECH", "BROKEN LANGUAGE", "REPEATED PHRASE",
+        "LOW HUM", "ECHO OF TALKING", "DISTANT SCREAM",
+        "VOICE WITHOUT SOURCE", "INSIDE YOUR HEAD",
+        "TWO PEOPLE AT ONCE", "UNDERLAPPING WORDS",
+        "REVERSED SPEECH", "NOT HUMAN TIMBRE",
+        "SOUND LIKE YOUR OWN", "GLITCHED VOICE",
+        "WHISPERING WALLS", "VOICE IN METAL",
+        "VOICE IN GLASS", "VOICE IN DARK AIR",
+        "UNSPEAKABLE TONE", "NO MOUTH NEEDED",
+        "VOICE THAT FADES WHEN LISTENED TO",
+        "VOICE THAT ANSWERS BEFORE ASKED",
+        "VOICE THAT DOESN'T MATCH LIPS"
+    ],
+    "fear": [
+        "IT IS HERE", "DON'T MOVE", "IT SAW YOU",
+        "BREATH STOPPED", "YOU SHOULDN'T BE HERE",
+        "TURN OFF THE LIGHTS", "IT IS CLOSER",
+        "SOMETHING BEHIND YOU IS WRONG",
+        "DON'T SPEAK NOW", "IT HEARS FEAR",
+        "YOU ARE NOT ALONE NOW", "RUN TOO LATE",
+        "IT KNOWS YOUR NAME NOW", "IT LEARNED YOU",
+        "DON'T LOOK AT IT", "IT IS LOOKING BACK",
+        "YOU OPENED IT", "IT WOKE UP",
+        "IT MOVES WHEN YOU BLINK",
+        "YOUR SHADOW IS WRONG", "IT STOLE SILENCE",
+        "YOU HEAR IT WRONG", "IT IS ALREADY INSIDE",
+        "DON'T TRUST THE DARK", "IT BREATHES WHEN YOU DON'T"
+    ],
+    "place": [
+        "THIS HOUSE", "THE HALLWAY", "THE ROOM YOU ENTERED",
+        "THE FLOOR THAT CREAKS", "THE EMPTY BUILDING",
+        "THE BASEMENT LEVEL", "THE TOP FLOOR",
+        "THE STAIRCASE LOOP", "THE DOOR THAT LOCKS ITSELF",
+        "THE WINDOWLESS ROOM", "THE HIDDEN CORRIDOR",
+        "THE PLACE BEHIND WALLS", "THE LOST APARTMENT",
+        "THE UNLISTED FLOOR", "THE BROKEN HOUSE",
+        "THE SPACE BETWEEN ROOMS", "THE PLACE YOU MISSED",
+        "THE BUILDING THAT REPEATS", "THE HOUSE THAT REMEMBERS",
+        "THE EMPTY STREET", "THE ROOM THAT CHANGES",
+        "THE HALL THAT EXTENDS", "THE CORNER THAT MOVES",
+        "THE PLACE WITHOUT EXIT", "THE HOUSE THAT WATCHES",
+        "THE PLACE YOU SHOULDN'T NAME"
+    ],
+    "warning": [
+        "DON'T STAY", "LEAVE NOW", "IT IS TOO LATE",
+        "TURN BACK", "DON'T ENTER", "DO NOT LISTEN",
+        "CLOSE EVERYTHING", "LOCK THE DOOR",
+        "DON'T RESPOND", "STOP TALKING",
+        "DON'T USE LIGHT", "DON'T STAY ALONE",
+        "DON'T COUNT THE SHADOWS",
+        "IT REACTS TO YOU", "DON'T ACKNOWLEDGE IT",
+        "DON'T REPEAT IT", "IGNORE THE SOUND",
+        "DON'T FOLLOW IT", "DON'T GO UPSTAIRS",
+        "DON'T GO DOWN", "DON'T TOUCH ANYTHING",
+        "DON'T SLEEP HERE", "LEAVE THE HOUSE",
+        "RUN BEFORE IT FINISHES"
+    ]
 }
 
+JUMPSCARE_RESPONSES = [
+    "I SEE YOU",
+    "YOU ARE ALREADY DEAD",
+    "I AM IN YOUR WALLS",
+    "GET OUT. GET OUT NOW.",
+    "YOU CANNOT ESCAPE ME",
+    "WE ARE ALL AROUND YOU",
+    "IT IS FAR TOO LATE",
+    "I AM DIRECTLY BEHIND YOU",
+    "YOUR SOUL IS MINE",
+    "YOU SHOULD NOT HAVE SPOKEN",
+    "I HAVE BEEN WATCHING YOU",
+    "THE DARKNESS IS HUNGRY",
+    "RUN. RUN NOW.",
+    "YOU WOKE SOMETHING ANCIENT",
+    "I WILL FOLLOW YOU HOME",
+    "IT KNOWS YOUR FACE",
+    "SCREAM. NO ONE WILL HEAR.",
+    "YOU INVITED US IN",
+    "WE HAVE ALWAYS BEEN HERE",
+    "IT IS INSIDE YOU NOW",
+]
+
 QUESTIONS = {
-    "Where are you?":          "location",
-    "How did you die?":        "death",
-    "How old are you?":        "age",
-    "What is your name?":      "name",
-    "Give us a sign.":         "sign",
-    "Are you alone?":          "presence",
-    "Do you have a message?":  "message",
-    "What time is it?":        "time",
-    "Why are you here?":       "presence",
-    "Can you hear us?":        "sign",
-    "Are you at peace?":       "message",
-    "Who are you?":            "name",
-    "Show yourself.":          "sign",
-    "Do you want to leave?":   "message",
-    "What happened here?":     "death",
+    "Where are you?": "location",
+    "How did you die?": "death",
+    "How old are you?": "age",
+    "What is your name?": "name",
+    "Give us a sign.": "sign",
+    "Are you alone?": "presence",
+    "Do you have a message?": "message",
+    "What time is it?": "time",
+    "Can you hear us?": "sign",
+    "Who are you?": "name",
+    "Show yourself.": "sign",
+    "What happened here?": "death",
+    "Can you speak?": "voice",
+    "What do you sound like?": "voice",
+    "Who is there?": "presence",
+    "Is anyone else here?": "presence",
+    "What do you fear?": "fear",
+    "Are we in danger?": "fear",
+    "What is this place?": "place",
+    "Where am i?": "place",
+    "Should we leave?": "warning",
+    "Is it safe?": "warning",
+    "What should we do?": "warning",
+    "Are you angry?": "message",
+    "Do you want us gone?": "message",
+    "Why are you here?": "presence",
+    "Did something happen here?": "death",
+    "How long has it been?": "time",
+    "Is time broken?": "time"
 }
+
+
+def _generate_wav(duration, sample_rate, amplitude, envelope="flat"):
+    num_samples = int(duration * sample_rate)
+    samples = []
+    for i in range(num_samples):
+        raw = random.randint(-amplitude, amplitude)
+        if envelope == "attack":
+            frac = i / num_samples
+            gain = min(1.0, frac * 4.0)
+            raw = int(raw * gain)
+        elif envelope == "decay":
+            frac = i / num_samples
+            gain = max(0.0, 1.0 - frac)
+            raw = int(raw * gain)
+        elif envelope == "burst":
+            frac = i / num_samples
+            if frac < 0.05:
+                gain = frac / 0.05
+            elif frac > 0.80:
+                gain = (1.0 - frac) / 0.20
+            else:
+                gain = 1.0
+            raw = int(raw * gain)
+        samples.append(max(-32768, min(32767, raw)))
+
+    fname = os.path.join(tempfile.gettempdir(), f"sb_{envelope}_{duration}.wav")
+    with wave.open(fname, "w") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(sample_rate)
+        data = struct.pack("<" + "h" * num_samples, *samples)
+        f.writeframes(data)
+    return fname
+
 
 def _char_bar_profile(ch, amp):
     targets = []
@@ -547,12 +753,39 @@ class QueryButton(BoxLayout):
 
 class SpiritBoxApp(App):
     def build(self):
-        self.title      = "SPIRIT BOX"
-        self.is_powered = False
-        self.is_busy    = False
+        self.title          = "SPIRIT BOX"
+        self.is_powered     = False
+        self.is_busy        = False
+        self._static_sound  = None
+        self._scare_sound   = None
+        self._jumpscare_active = False
+
+        self._static_wav_path  = _generate_wav(4.0, 22050, 5000, "flat")
+        self._scare_wav_path   = _generate_wav(2.0, 22050, 32000, "burst")
+
         root = self._build_ui()
         Clock.schedule_once(lambda dt: self._refresh_questions(), 0.3)
+        Clock.schedule_once(lambda dt: self._preload_sounds(), 0.5)
         return root
+
+    def _preload_sounds(self):
+        self._static_sound = SoundLoader.load(self._static_wav_path)
+        if self._static_sound:
+            self._static_sound.loop   = True
+            self._static_sound.volume = 0.18
+
+        self._scare_sound = SoundLoader.load(self._scare_wav_path)
+        if self._scare_sound:
+            self._scare_sound.loop   = False
+            self._scare_sound.volume = 1.0
+
+    def _start_static(self):
+        if self._static_sound and self._static_sound.state != "play":
+            self._static_sound.play()
+
+    def _stop_static(self):
+        if self._static_sound and self._static_sound.state == "play":
+            self._static_sound.stop()
 
     def _build_ui(self):
         root = BoxLayout(
@@ -791,6 +1024,7 @@ class SpiritBoxApp(App):
             self._pwr_status_lbl.color = (0.18, 0.72, 0.28, 1)
             for btn in self._query_btns:
                 btn.set_disabled(False)
+            self._start_static()
         else:
             self._lcd_border_c.rgba = list(LCD_BORDER_OFF)
             self._lcd_bg_c.rgba     = list(LCD_GREEN_OFF)
@@ -806,6 +1040,7 @@ class SpiritBoxApp(App):
                 btn.set_disabled(True)
                 btn.set_active(False)
             self.is_busy = False
+            self._stop_static()
 
     def _set_lcd_text(self, color):
         self._status_lbl.color   = color
@@ -814,8 +1049,13 @@ class SpiritBoxApp(App):
         self._response_lbl.color = color
 
     def _on_query(self, btn):
-        if not self.is_powered or self.is_busy:
+        if not self.is_powered or self.is_busy or self._jumpscare_active:
             return
+
+        if random.random() < 0.01:
+            self._trigger_jumpscare()
+            return
+
         question = btn.question
         category = QUESTIONS.get(question, "sign")
         response = random.choice(GHOST_RESPONSES[category])
@@ -839,15 +1079,74 @@ class SpiritBoxApp(App):
             daemon=True,
         ).start()
 
+    def _trigger_jumpscare(self):
+        self._jumpscare_active = True
+        self.is_busy = True
+
+        for b in self._query_btns:
+            b.set_disabled(True)
+            b.set_active(False)
+
+        self._stop_static()
+
+        if self._scare_sound:
+            self._scare_sound.volume = 1.0
+            self._scare_sound.play()
+
+        response = random.choice(JUMPSCARE_RESPONSES)
+
+        self._lcd_border_c.rgba = [0.90, 0.05, 0.05, 1]
+        self._lcd_bg_c.rgba     = [0.60, 0.02, 0.02, 1]
+        self._status_lbl.color  = (1, 0, 0, 1)
+        self._mode_lbl.color    = (1, 0, 0, 1)
+        self._freq_lbl.color    = (1, 0, 0, 1)
+        self._response_lbl.color = (1, 1, 1, 1)
+        self._status_lbl.text   = ">> INTRUSION"
+        self._freq_lbl.text     = "!!!!!!! MHz"
+        self._response_lbl.text = response
+
+        self._visualizer.load_phonemes(response)
+        self._visualizer.start_speaking()
+
+        Clock.schedule_once(self._jumpscare_shutdown, 4.0)
+
+    def _jumpscare_shutdown(self, dt):
+        self._visualizer.stop_speaking()
+        self._response_lbl.text = "IT IS HERE"
+        self._status_lbl.text   = "SIGNAL LOST"
+        self._freq_lbl.text     = "--- --- ---"
+
+        Clock.schedule_once(self._do_shutdown, 1.5)
+
+    def _do_shutdown(self, dt):
+        self._jumpscare_active = False
+        self.is_busy    = False
+        self.is_powered = False
+        self._power_btn.set_state(False)
+        self._lcd_border_c.rgba    = list(LCD_BORDER_OFF)
+        self._lcd_bg_c.rgba        = list(LCD_GREEN_OFF)
+        self._set_lcd_text(LCD_TEXT_OFF)
+        self._status_lbl.text      = "STANDBY"
+        self._mode_lbl.text        = "FM SWEEP"
+        self._freq_lbl.text        = "---.-- MHz"
+        self._response_lbl.text    = ""
+        self._pwr_status_lbl.text  = "POWER OFF"
+        self._pwr_status_lbl.color = (0.38, 0.15, 0.15, 1)
+        self._visualizer.stop_speaking()
+        for b in self._query_btns:
+            b.set_disabled(True)
+            b.set_active(False)
+        self._stop_static()
+
     def _ghost_sequence(self, response, delay, btn):
         time.sleep(delay)
         Clock.schedule_once(lambda dt: self._on_speak_start(response), 0)
 
         spoken = False
-        #try:
-        	#p = multiprocessing.Process(target=speakf, args=(response,)); p.start(); p.join()
-        #except Exception as e:
-            #print(f"TTS error: {e}")
+        try:
+                speakf(response) #p = multiprocessing.Process(target=speakf, args=(response,)); p.start(); p.join()
+        except Exception as e:
+            print(f"TTS error: {e}")
 
         if not spoken:
             est = max(1.5, len(response.split()) * 0.70)
