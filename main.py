@@ -760,8 +760,8 @@ class SpiritBoxApp(App):
         self._scare_sound   = None
         self._jumpscare_active = False
 
-        self._static_wav_path  = _generate_wav(4.0, 22050, 5000, "flat")
-        self._scare_wav_path   = _generate_wav(2.0, 22050, 32000, "burst")
+        self._static_wav_path  = _generate_wav(30.0, 22050, 5000, "flat")
+        self._scare_wav_path   = _generate_wav(5.0, 22050, 32000, "burst")
 
         root = self._build_ui()
         Clock.schedule_once(lambda dt: self._refresh_questions(), 0.3)
@@ -772,7 +772,7 @@ class SpiritBoxApp(App):
         self._static_sound = SoundLoader.load(self._static_wav_path)
         if self._static_sound:
             self._static_sound.loop   = True
-            self._static_sound.volume = 0.18
+            self._static_sound.volume = 0.09
 
         self._scare_sound = SoundLoader.load(self._scare_wav_path)
         if self._scare_sound:
@@ -1052,7 +1052,7 @@ class SpiritBoxApp(App):
         if not self.is_powered or self.is_busy or self._jumpscare_active:
             return
 
-        if random.random() < 0.01:
+        if random.random() < 0.02:
             self._trigger_jumpscare()
             return
 
