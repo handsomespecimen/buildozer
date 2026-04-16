@@ -11,13 +11,55 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
+      # python deps cache (pip wheels)
+      - name: cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      # buildozer + python-for-android cache
+      - name: cache buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('**/buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      # android gradle cache (biggest speed boost)
+      - name: cache gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/buildozer.spec') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      # optional: android sdk cache (huge but unstable if abused)
+      - name: cache android sdk
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android
+            ~/Android
+          key: android-${{ runner.os }}
+          restore-keys: |
+            android-${{ runner.os }}-
+
       - name: Build Release APK
         uses: digreatbrian/buildozer-action@v2
         with:
           python-version: 3.11
           buildozer-cmd: buildozer -v android debug
-          
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
