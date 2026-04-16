@@ -28,21 +28,29 @@ Config.set("graphics", "height", "900")
 Config.set("graphics", "resizable", "0")
 
 tts = None
-class init_listener(PythonJavaClass):
-    __javainterfaces__ = ['android/speech/tts/TextToSpeech$OnInitListener']
-    @java_method('(I)V')
-    def onInit(self, status):
-        if status == tts_class.SUCCESS:
-            tts.setSpeechRate(0.6)
-            tts.setPitch(0.3)
-            tts.setLanguage(locale.US)
+tts_class = None
+locale = None
 
 def init_tts():
     global tts, tts_class, locale
+
+    from jnius import autoclass, PythonJavaClass, java_method
+
     tts_class = autoclass("android.speech.tts.TextToSpeech")
     locale = autoclass("java.util.Locale")
     PythonActivity = autoclass("org.kivy.android.PythonActivity")
     act = PythonActivity.mActivity
+
+    class init_listener(PythonJavaClass):
+        __javainterfaces__ = ['android/speech/tts/TextToSpeech$OnInitListener']
+
+        @java_method('(I)V')
+        def onInit(self, status):
+            if status == tts_class.SUCCESS:
+                tts.setSpeechRate(0.6)
+                tts.setPitch(0.3)
+                tts.setLanguage(locale.US)
+
     tts = tts_class(act, init_listener())
 
 def speakf(text):
@@ -780,6 +788,7 @@ class SpiritBoxApp(App):
         root = self._build_ui()
         Clock.schedule_once(lambda dt: self._refresh_questions(), 0.3)
         Clock.schedule_once(lambda dt: self._preload_sounds(), 0.5)
+        Clock.schedule_once(lambda dt: init_tts(), 0.5)
         return root
 
     def _preload_sounds(self):
