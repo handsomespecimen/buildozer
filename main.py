@@ -19,7 +19,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
-from jnius import autoclass, PythonJavaClass, java_method
+from jnius import autoclass
 
 os.environ.setdefault("KIVY_NO_ENV_CONFIG", "1")
 os.environ.setdefault("KIVY_GL_BACKEND", "sdl2")
@@ -28,35 +28,19 @@ Config.set("graphics", "height", "900")
 Config.set("graphics", "resizable", "0")
 
 tts = None
-tts_class = None
-locale = None
-
 def init_tts():
-    global tts, tts_class, locale
+    global tts
+    act = autoclass("org.renpy.android.PythonActivity")
+    ctx = act.mActivity
 
-    from jnius import autoclass, PythonJavaClass, java_method
+    TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
+    tts = TextToSpeech(ctx, None)
 
-    tts_class = autoclass("android.speech.tts.TextToSpeech")
-    locale = autoclass("java.util.Locale")
-    PythonActivity = autoclass("org.kivy.android.PythonActivity")
-    act = PythonActivity.mActivity
-
-    class init_listener(PythonJavaClass):
-        __javainterfaces__ = ['android/speech/tts/TextToSpeech$OnInitListener']
-
-        @java_method('(I)V')
-        def onInit(self, status):
-            if status == tts_class.SUCCESS:
-                tts.setSpeechRate(0.6)
-                tts.setPitch(0.3)
-                tts.setLanguage(locale.US)
-
-    tts = tts_class(act, init_listener())
-
-def speakf(text):
-    if tts:
-        tts.speak(text, tts_class.QUEUE_FLUSH, None, None)
-
+def speakf(txt):
+    tts.setPitch(0.6)
+    tts.setSpeechRate(0.6)
+    tts.speak(txt, 0, None)
+    
 NUM_BARS   = 9
 LERP_SPEED = 0.16
 
