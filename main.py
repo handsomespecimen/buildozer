@@ -34,8 +34,8 @@ def init_tts():
     ctx = act.mActivity
     TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
     tts = TextToSpeech(ctx, None)
-    tts.setPitch(0.1)
-    tts.setSpeechRate(0.5)
+    tts.setPitch(0.01)
+    tts.setSpeechRate(0.4)
 
 def speakf(txt):
     tts.speak(txt, 0, None)
