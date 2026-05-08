@@ -1,1180 +1,284 @@
-import os
-import math
 import random
-import threading
-import time
-import multiprocessing
-import wave
-import struct
-import tempfile
-
-import kivy
+import math
 from kivy.app import App
-from kivy.clock import Clock
-from kivy.config import Config
-from kivy.core.audio import SoundLoader
-from kivy.graphics import Color, Rectangle, RoundedRectangle, Line, Ellipse
-from kivy.metrics import dp, sp
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.label import Label
 from kivy.uix.widget import Widget
-from jnius import autoclass
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.graphics import Color,Ellipse,Rectangle,InstructionGroup,Line
+from kivy.clock import Clock
+from kivy.vector import Vector
+from kivy.core.window import Window
 
-os.environ.setdefault("KIVY_NO_ENV_CONFIG", "1")
-os.environ.setdefault("KIVY_GL_BACKEND", "sdl2")
-Config.set("graphics", "width",  "450")
-Config.set("graphics", "height", "900")
-Config.set("graphics", "resizable", "0")
+def crossover(p1,p2):
+    return "".join(sorted(random.choice(p1)+random.choice(p2)))
 
-tts = None
-def init_tts():
-    global tts
-    act = autoclass("org.kivy.android.PythonActivity")
-    ctx = act.mActivity
-    TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
-    tts = TextToSpeech(ctx, None)
-    tts.setPitch(0.01)
-    tts.setSpeechRate(0.4)
+class plantmodel:
+    def __init__(self,color_genes="Rr",height_genes="Tt"):
+        self.color_genes = "".join(sorted(color_genes))
+        self.height_genes = "".join(sorted(height_genes))
+        self.age = 0
+        self.is_planted = False
+        self.is_harvestable = False
+        self.pollinated_by = None
 
-def speakf(txt):
-    tts.speak(txt, 0, None)
-    
-NUM_BARS   = 9
-LERP_SPEED = 0.16
+    @property
+    def phenotype_color(self):
+        return (.9,.1,.1,1) if "R" in self.color_genes else (1,1,1,1)
 
-VOWELS     = set("AEIOU")
-PLOSIVES   = set("BPDTGK")
-SIBILANTS  = set("SZ")
-NASALS     = set("MNL")
+    @property
+    def phenotype_height(self):
+        return 1.4 if "T" in self.height_genes else .8
 
-LCD_GREEN_ON      = (0.50, 0.72, 0.18, 1)
-LCD_GREEN_OFF     = (0.12, 0.18, 0.05, 1)
-LCD_TEXT_ON       = (0.06, 0.10, 0.02, 1)
-LCD_TEXT_OFF      = (0.20, 0.28, 0.10, 1)
-LCD_BORDER_ON     = (0.35, 0.52, 0.10, 1)
-LCD_BORDER_OFF    = (0.15, 0.20, 0.08, 1)
+    def update(self,dt):
+        if self.is_planted and self.age < 30:
+            self.age += dt*2
+            if self.age >= 30:
+                self.is_harvestable = True
 
-CHASSIS_TOP       = (0.13, 0.13, 0.14, 1)
-CHASSIS_EDGE      = (0.19, 0.19, 0.21, 1)
+class plantwidget(Widget):
+    def __init__(self,model,**kwargs):
+        super().__init__(**kwargs)
+        self.model = model
+        self.size = (80,80)
+        self.size_hint = (None,None)
 
-SCREW_BODY        = (0.22, 0.22, 0.24, 1)
-SCREW_SLOT        = (0.30, 0.30, 0.33, 1)
+        self.gene_label = Label(text=f"{self.model.color_genes}\n{self.model.height_genes}",
+                                color=(1,1,1,.7),font_size="10sp",bold=True,halign="center")
+        self.add_widget(self.gene_label)
 
-PWR_RING_OFF      = (0.50, 0.10, 0.10, 1)
-PWR_RING_ON       = (0.18, 0.80, 0.28, 1)
-PWR_ICON_OFF      = (0.80, 0.18, 0.18, 1)
-PWR_ICON_ON       = (0.28, 1.00, 0.45, 1)
-PWR_BG_OFF        = (0.10, 0.06, 0.06, 1)
-PWR_BG_ON         = (0.06, 0.12, 0.07, 1)
+        self.canvas_group = InstructionGroup()
+        self.canvas.add(self.canvas_group)
+        Clock.schedule_interval(self.update_view,1/30)
 
-QUERY_BG          = (0.11, 0.11, 0.13, 1)
-QUERY_EDGE        = (0.20, 0.20, 0.23, 1)
-QUERY_ACTIVE_BG   = (0.18, 0.18, 0.22, 1)
-QUERY_ACTIVE_EDGE = (0.35, 0.35, 0.45, 1)
-QUERY_TEXT        = (0.60, 0.65, 0.58, 1)
-QUERY_TEXT_ACT    = (0.82, 0.88, 0.78, 1)
-QUERY_DIS_BG      = (0.09, 0.09, 0.10, 1)
-QUERY_DIS_EDGE    = (0.13, 0.13, 0.15, 1)
-QUERY_DIS_TEXT    = (0.28, 0.30, 0.26, 1)
-
-SMALL_FONT     = sp(10)
-NORMAL_FONT    = sp(11.5)
-NORMALISH_FONT = sp(13)
-COMMON_FONT    = sp(13)
-DECENT_FONT    = sp(15)
-DECENTER_FONT  = sp(16)
-BIG_FONT       = sp(20)
-
-GHOST_RESPONSES = {
-    "location": [
-        "BEHIND YOU", "IN THE WALLS", "BENEATH YOUR FEET",
-        "ABOVE", "HERE", "EVERYWHERE", "THE CORNER",
-        "FOLLOW THE COLD", "BELOW YOU", "WHERE YOU SLEEP", "SO CLOSE",
-        "INSIDE THE FLOOR", "IN THE DARK HALL", "UNDER YOUR BED",
-        "IN THE CEILING", "JUST OUT OF SIGHT", "IN THE MIRROR",
-        "NEXT ROOM", "OUTSIDE YOUR WINDOW", "IN YOUR SHADOW",
-        "WHERE LIGHT DOESN'T REACH", "IN THE DOORWAY", "BEHIND YOU",
-        "DOWNSTAIRS", "AT YOUR BACK", "NOWHERE",
-        "IN THE STATIC", "IN THE SILENCE", "IN THE HALLWAY",
-        "RIGHT HERE", "IN YOUR HEAD", "IN THE FLOOR BELOW",
-        "IN THE VOID CORNER", "IN THE ECHO", "IN THE COLD SPOT",
-        "IN THE DOOR FRAME", "OVER THERE", "IN THE LAMP LIGHT",
-        "JUST BEYOND YOU", "IN YOUR PERIPHERY", "IN THE EMPTY ROOM",
-        "WHERE YOU TURNED AWAY", "IN THE CLOSED SPACE", "WOULDN'T YOU LIKE TO KNOW"
-    ],
-    "death": [
-        "IT HAPPENED", "WATER MAYBE", "SOMETHING TURNED", "ALONE I THINK",
-        "SLOW OR FAST", "I DON’T REMEMBER PAIN", "A DROP", "NOT TRUE",
-        "BY SOMEONE", "COLD ALL AROUND", "NO ONE ARRIVED", "QUICK OR NOT",
-        "QUIET HEAT", "UNDER TOO MUCH", "LOST IN IT",
-        "IT KEPT GOING", "THE PLACE DID IT", "NO AIR LEFT",
-        "IT CLOSED", "FELL THROUGH", "SOMETHING MOVED ME",
-        "LIGHT LEFT", "FORGOTTEN AFTER", "TAKEN AWAY",
-        "WALLS FELT CLOSE", "IT GAVE WAY", "IT HELD",
-        "THEY LEFT", "STOPPED MIDWAY", "IT OPENED",
-        "SOUND ENDED", "NOTHING SAID", "IT REACHED",
-        "THE DARK DID IT", "I STAYED", "INSIDE ALREADY"
-    ],
-    "age": [
-        "OLDER THAN YOU", "NOT OLD", "SOMEWHERE CLOSE",
-        "SMALL ONCE", "VERY OLD", "NOT IMPORTANT", "MISPLACED",
-        "TIME IS OFF", "OLDER THAN THIS", 
-        "BEFORE ANYTHING", "PAST COUNTING", "NO NUMBER FITS",
-        "STUCK THERE", "BEFORE YOU",
-        "AFTER IT", "IT STOPPED THEN",
-        "NO AGE NOW", "OUT OF TIME", "OLDER THAN HERE",
-        "OLDER THAN I REMEMBER", "NEVER STARTED",
-        "SKIPPED OVER", "ENDLESS", "NOT COUNTED",
-        "PAST RECALL", "NOT HUMAN TIME",
-        "BETWEEN MOMENTS", "TIME MISSED ME"
-    ],
-    "name": [
-        "IT WAS SOMETHING",
-        "NOT ANYMORE",
-        "QUIETLY", "LOST ONE", 
-        "BETTER NOT", "CALL ME SOMETHING", "SOMETHING LIKE ALICE", "I HAD ONE",
-        "SOMETHING FAMILIAR", "SOMETHING ELSE", "AN OLD ONE", "ANOTHER ONE", "A COMMON ONE",
-        "THE ONE LEFT", "I DON’T KEEP IT",
-        "ONCE SPOKEN", "UNKNOWN STILL", "REMOVED",
-        "THE OLD SOUND", "BROKEN NOW", "JUST AN ECHO",
-        "STILL HERE THOUGH", "ANYTHING WORKS",
-        "IT DOESN’T STAY", "NO NAME LEFT",
-        "I LET IT GO", "NO ONE USES IT"
-    ],
-    "sign": [
-        "A CHANGE", "BEING NOTICED", "A SHIFT IN AIR", "THE LIGHT MAYBE",
-        "CHECK AGAIN", "REFLECTIONS", "YOU’VE SEEN IT",
-        "SOMETHING REPEATS", "INTERFERENCE", "NOT ALONE PROBABLY",
-        "MOVEMENT MAYBE", "LIGHT CHANGES",
-        "SHADOWS FEEL OFF", "TEMPERATURE SHIFTS",
-        "SOUNDS ABOVE", "A FAINT VOICE",
-        "GLASS REACTS", "SOMETHING ANSWERS",
-        "TIME STALLS", "WINDOWS FEEL STRANGE",
-        "THINGS REVERSE", "SOMETHING DRAGS",
-        "A LOW HUM", "DIM LIGHT",
-        "I AM NEAR", "REFLECTION DELAYS",
-        "MISSED BLINK", "A BREATH CLOSE"
-    ],
-    "presence": [
-        "NOT JUST ONE", "ONLY ONE MAYBE", "MORE THAN ONE",
-        "COUNT IF YOU CAN", "MORE THAN SEEN",
-        "SOMETHING BROUGHT US", "YOU COULD LEAVE", "SEVERAL",
-        "STILL HERE", "WE REMAIN",
-        "HARD TO COUNT", "SHARED SPACE",
-        "ANOTHER NOW", "GROWING SLOWLY",
-        "ONE PER PLACE", "WATCHING",
-        "MOVE TOGETHER", "ALWAYS HERE",
-        "NO REST", "WITHIN WALLS",
-        "FOLLOWING MAYBE", "WAITING",
-        "SURROUNDED POSSIBLY", "NO END",
-        "STILL BEHIND", "MORE IN DARK"
-    ],
-    "message": [
-        "GO", "HELP MAYBE", "STAY OR NOT", "TELL SOMEONE",
-        "REMEMBER SOMETHING", "TELL THEM MAYBE", "BETTER AWAY",
-        "IT KNOWS", "NOT TRUE", "RUN IF NEEDED",
-        "DON’T TURN", "TOO LATE MAYBE",
-        "SAVE YOURSELF", "BE CAREFUL",
-        "OPEN IT", "CLOSE IT",
-        "STILL HERE", "NOT SAFE HERE",
-        "LET ME OUT", "STOP",
-        "INSIDE ALREADY", "DON’T SAY IT",
-        "LEAVE SOON", "SEEN NOW",
-        "DON’T RETURN", "END THIS", "FORGET", "NOT ALONE"
-    ],
-    "time": [
-        "LATE", "ALWAYS HERE", "WHEN ALONE",
-        "AROUND THEN", "NO END", "SOON ENOUGH",
-        "TIME BREAKS", "EVERY TIME",
-        "CLOCKS FAIL", "STILLNESS",
-        "AFTER THAT", "BEFORE LIGHT",
-        "WHEN DARK COMES", "WHEN YOU MISS IT",
-        "BETWEEN MOMENTS", "OUTSIDE IT",
-        "STUCK", "LOST TIME",
-        "NO MORNING", "LONG NIGHT",
-        "REPEATS", "CLOCK WRONG",
-        "WHEN STILL", "WHEN FORGOTTEN",
-        "TIME IS SPACE", "NEVER BEGAN"
-    ],
-    "voice": [
-        "QUIET", "MORE THAN ONE", "BREATHED WORDS",
-        "BROKEN SOUND", "NOT CLEAR", "REPEATING",
-        "LOW SOUND", "DISTANT TALK", "FAR SCREAM",
-        "NO SOURCE", "INSIDE MAYBE",
-        "TWO AT ONCE", "OVERLAP",
-        "BACKWARD", "NOT HUMAN",
-        "LIKE YOU", "GLITCHED",
-        "FROM WALLS", "FROM METAL",
-        "FROM GLASS", "FROM AIR",
-        "UNFORMED", "NO MOUTH",
-        "FADES WHEN HEARD",
-        "ANSWERS EARLY",
-        "DOESN’T MATCH"
-    ],
-    "fear": [
-        "IT’S HERE", "STAY STILL", "IT NOTICED",
-        "BREATH CHANGES", "NOT MEANT TO BE HERE",
-        "LIGHTS OFF MAYBE", "CLOSER NOW",
-        "SOMETHING IS WRONG",
-        "DON’T SPEAK", "IT HEARS",
-        "NOT ALONE", "TOO LATE",
-        "IT KNOWS YOU", "IT LEARNED",
-        "DON’T LOOK", "IT LOOKS BACK",
-        "YOU OPENED IT", "IT WOKE",
-        "MOVES SLIGHTLY",
-        "SHADOW WRONG", "SILENCE GONE",
-        "SOUNDS OFF", "ALREADY INSIDE",
-        "DARK IS NOT SAFE", "IT BREATHES"
-    ],
-    "place": [
-        "THIS PLACE", "THAT HALL", "THE ROOM",
-        "THE CREAKING PART", "A BUILDING",
-        "LOWER LEVEL", "UPPER PART",
-        "STAIRS AGAIN", "A LOCKED DOOR",
-        "THE BALCONY", "HIDDEN WAY",
-        "BEHIND WALLS", "A LOST ROOM",
-        "AN EXTRA FLOOR", "A BROKEN PLACE",
-        "BETWEEN ROOMS", "MISSED SPOT",
-        "REPEATING BUILDING", "REMEMBERING HOUSE",
-        "EMPTY ROOM", "THE BATHROOM",
-        "LONG HALL", "SHIFTING CORNER",
-        "NO EXIT", "WATCHING",
-        "UNNAMED PLACE"
-    ],
-    "warning": [
-        "DON’T STAY LONG", "LEAVE IF YOU CAN", "MIGHT BE LATE",
-        "TURN BACK MAYBE", "DON’T GO IN", "DON’T LISTEN CLOSELY",
-        "SHUT THINGS", "LOCK IT",
-        "DON’T ANSWER", "STOP",
-        "LIGHT MAY NOT HELP", "DON’T BE ALONE",
-        "DON’T COUNT THEM",
-        "IT REACTS", "DON’T NOTICE IT",
-        "DON’T REPEAT", "IGNORE IT",
-        "DON’T FOLLOW", "DON’T GO UP",
-        "DON’T GO DOWN", "DON’T TOUCH",
-        "DON’T REST HERE", "LEAVE THIS PLACE",
-        "GO BEFORE IT DOES"
-    ]
-}
-
-JUMPSCARE_RESPONSES = [
-    "I SEE YOU",
-    "YOU ARE ALREADY DEAD",
-    "I AM IN YOUR WALLS",
-    "GET OUT. GET OUT NOW.",
-    "YOU CANNOT ESCAPE ME",
-    "WE ARE ALL AROUND YOU",
-    "IT IS FAR TOO LATE",
-    "BEHIND YOU",
-    "YOUR SOUL IS MINE",
-    "YOU SHOULD NOT HAVE SPOKEN",
-    "I HAVE BEEN WATCHING YOU",
-    "THE DARKNESS IS HUNGRY",
-    "RUN. RUN NOW.",
-    "YOU WOKE SOMETHING ANCIENT",
-    "I WILL FOLLOW YOU HOME",
-    "IT KNOWS YOUR FACE",
-    "SCREAM. NO ONE WILL HEAR.",
-    "YOU INVITED US IN",
-    "WE HAVE ALWAYS BEEN HERE",
-    "IT IS INSIDE YOU NOW",
-]
-
-QUESTIONS = {
-    "Where are you?": "location",
-    "How did you die?": "death",
-    "How old are you?": "age",
-    "What is your name?": "name",
-    "Give us a sign.": "sign",
-    "Are you alone?": "presence",
-    "Do you have a message?": "message",
-    "What time is it?": "time",
-    "Can you hear us?": "sign",
-    "Who are you?": "name",
-    "Show yourself.": "sign",
-    "What happened here?": "death",
-    "Can you speak?": "voice",
-    "What do you sound like?": "voice",
-    "Who is there?": "presence",
-    "Is anyone else here?": "presence",
-    "What do you fear?": "fear",
-    "Are we in danger?": "fear",
-    "What is this place?": "place",
-    "Where am i?": "place",
-    "Should we leave?": "warning",
-    "Is it safe?": "warning",
-    "What should we do?": "warning",
-    "Are you angry?": "message",
-    "Do you want us gone?": "message",
-    "Why are you here?": "presence",
-    "Did something happen here?": "death",
-    "How long has it been?": "time",
-    "Is time broken?": "time"
-}
-
-
-def _generate_wav(duration, sample_rate, amplitude, envelope="flat"):
-    num_samples = int(duration * sample_rate)
-    samples = []
-    for i in range(num_samples):
-        raw = random.randint(-amplitude, amplitude)
-        if envelope == "attack":
-            frac = i / num_samples
-            gain = min(1.0, frac * 4.0)
-            raw = int(raw * gain)
-        elif envelope == "decay":
-            frac = i / num_samples
-            gain = max(0.0, 1.0 - frac)
-            raw = int(raw * gain)
-        elif envelope == "burst":
-            frac = i / num_samples
-            if frac < 0.05:
-                gain = frac / 0.05
-            elif frac > 0.80:
-                gain = (1.0 - frac) / 0.20
-            else:
-                gain = 1.0
-            raw = int(raw * gain)
-        samples.append(max(-32768, min(32767, raw)))
-
-    fname = os.path.join(tempfile.gettempdir(), f"sb_{envelope}_{duration}.wav")
-    with wave.open(fname, "w") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(sample_rate)
-        data = struct.pack("<" + "h" * num_samples, *samples)
-        f.writeframes(data)
-    return fname
-
-
-def _char_bar_profile(ch, amp):
-    targets = []
-    for i in range(NUM_BARS):
-        frac = i / (NUM_BARS - 1)
-        if ch in VOWELS:
-            shape = 1.0 - 0.20 * abs(frac - 0.45)
-            jitter = random.uniform(-0.06, 0.06)
-        elif ch in PLOSIVES:
-            shape = math.exp(-4.5 * (frac - 0.50) ** 2)
-            jitter = random.uniform(-0.08, 0.08)
-        elif ch in SIBILANTS:
-            shape = 0.35 + 0.65 * frac
-            jitter = random.uniform(-0.07, 0.07)
-        elif ch in NASALS:
-            shape = 0.75 - 0.20 * frac
-            jitter = random.uniform(-0.05, 0.05)
-        elif ch == ' ':
-            targets.append(random.uniform(0.01, 0.04))
-            continue
+    def update_view(self,dt):
+        self.model.update(dt)
+        self.canvas_group.clear()
+        self.gene_label.center_x,self.gene_label.y = self.center_x,self.y-25
+        genes = f"{self.model.color_genes} {self.model.height_genes}"
+        if self.model.pollinated_by:
+            p = self.model.pollinated_by
+            self.gene_label.text = f"plant: {genes}\npollen: {p.color_genes} {p.height_genes}"
         else:
-            shape = 0.85 - 0.35 * frac
-            jitter = random.uniform(-0.07, 0.07)
-        targets.append(max(0.02, min(0.98, amp * shape + jitter)))
-    return targets
+            self.gene_label.text = genes
 
-def build_phoneme_timeline(text, speech_rate=90):
-    chars_per_sec = (speech_rate / 60.0) * 5.0
-    timeline = []
-    t = 0.0
-    silence = [0.02] * NUM_BARS
-    timeline.append((0.0, silence[:]))
+        cx = self.x+self.width/2
+        cy = self.y+self.height/2
+        h_mult = self.model.phenotype_height
 
-    for ch in text.upper():
-        if ch == ' ':
-            dur = 1.0 / chars_per_sec * 2.5
-            timeline.append((t + dur * 0.10, [random.uniform(0.01, 0.04) for _ in range(NUM_BARS)]))
-            timeline.append((t + dur * 0.90, [random.uniform(0.01, 0.04) for _ in range(NUM_BARS)]))
-            t += dur
-            continue
+        if self.model.age < 10:
+            self.canvas_group.add(Color(.4,.25,.1,1))
+            self.canvas_group.add(Ellipse(pos=(cx-8,cy-5),size=(16,10)))
 
-        if ch in '.,!?\'"':
-            dur = 1.0 / chars_per_sec * 3.5
-            timeline.append((t + dur * 0.10, silence[:]))
-            timeline.append((t + dur * 0.90, silence[:]))
-            t += dur
-            continue
+        elif self.model.age < 20:
+            self.canvas_group.add(Color(.2,.7,.2,1))
+            self.canvas_group.add(Line(points=[cx,cy-10,cx,cy+20],width=2))
+            self.canvas_group.add(Ellipse(pos=(cx-14,cy+5),size=(14,7)))
+            self.canvas_group.add(Ellipse(pos=(cx,cy+8),size=(14,7)))
 
-        if ch in VOWELS:
-            dur   = 1.0 / chars_per_sec * 1.6
-            amp   = random.uniform(0.72, 0.97)
-        elif ch in PLOSIVES:
-            dur   = 1.0 / chars_per_sec * 0.85
-            amp   = random.uniform(0.45, 0.72)
-        elif ch in SIBILANTS:
-            dur   = 1.0 / chars_per_sec * 1.1
-            amp   = random.uniform(0.38, 0.62)
-        elif ch in NASALS:
-            dur   = 1.0 / chars_per_sec * 1.0
-            amp   = random.uniform(0.30, 0.55)
         else:
-            dur   = 1.0 / chars_per_sec * 0.95
-            amp   = random.uniform(0.25, 0.52)
+            h = 50*h_mult
+            self.canvas_group.add(Color(.1,.4,.1,1))
+            self.canvas_group.add(Rectangle(pos=(cx-2,cy-10),size=(4,h)))
+            self.canvas_group.add(Color(.1,.6,.1,1))
+            self.canvas_group.add(Ellipse(pos=(cx-25,cy+10),size=(25,12)))
+            self.canvas_group.add(Ellipse(pos=(cx+2,cy+20),size=(25,12)))
 
-        peak_targets  = _char_bar_profile(ch, amp)
-        onset_targets = [v * 0.45 for v in peak_targets]
-        decay_targets = [v * 0.30 for v in peak_targets]
+            if self.model.age >= 30:
+                if self.model.pollinated_by:
+                    self.canvas_group.add(Color(1,.9,0,.2))
+                    self.canvas_group.add(Ellipse(pos=(cx-30,cy+h-25),size=(60,60)))
+                self.canvas_group.add(Color(*self.model.phenotype_color))
+                for a in range(0,360,72):
+                    rad = math.radians(a)
+                    self.canvas_group.add(Ellipse(pos=(cx+18*math.cos(rad)-11,cy+h+18*math.sin(rad)-11),size=(22,22)))
+                self.canvas_group.add(Ellipse(pos=(cx-11,cy+h-11),size=(22,22)))
+                self.canvas_group.add(Color(.9,.8,0,1))
+                self.canvas_group.add(Ellipse(pos=(cx-9,cy+h-9),size=(18,18)))
 
-        timeline.append((t + dur * 0.15, onset_targets))
-        timeline.append((t + dur * 0.50, peak_targets))
-        timeline.append((t + dur * 0.85, decay_targets))
-        t += dur
-        
-    timeline.append((t + 0.05, silence[:]))
-    timeline.append((t + 0.30, [0.0] * NUM_BARS))
-    return timeline, t + 0.35
-
-class ScrewWidget(Widget):
-    def __init__(self, size_dp=10, **kwargs):
-        super().__init__(**kwargs)
-        self.size_hint = (None, None)
-        self.size = (dp(size_dp), dp(size_dp))
-        self.bind(pos=self._draw, size=self._draw)
-
-    def _draw(self, *args):
-        self.canvas.clear()
-        cx, cy = self.center_x, self.center_y
-        r  = min(self.width, self.height) / 2 - dp(0.5)
-        sl = r * 0.52
-        with self.canvas:
-            Color(*SCREW_BODY)
-            Ellipse(pos=(cx - r, cy - r), size=(r * 2, r * 2))
-            Color(0.16, 0.16, 0.18, 1)
-            Ellipse(pos=(cx - r * 0.55, cy - r * 0.55),
-                    size=(r * 1.10, r * 1.10))
-            Color(*SCREW_SLOT)
-            Line(points=[cx - sl, cy, cx + sl, cy], width=dp(1.3))
-            Line(points=[cx, cy - sl, cx, cy + sl], width=dp(1.3))
-
-class GrilleWidget(Widget):
-    def __init__(self, rows=6, **kwargs):
-        super().__init__(**kwargs)
-        self._rows = rows
-        self.bind(pos=self._draw, size=self._draw)
-
-    def _draw(self, *args):
-        self.canvas.clear()
-        if self.width <= 0 or self.height <= 0:
-            return
-        slot_h = dp(3.5)
-        gap    = (self.height - self._rows * slot_h) / max(self._rows + 1, 1)
-        px, pw = self.x + dp(6), self.width - dp(12)
-        with self.canvas:
-            for i in range(self._rows):
-                y = self.y + gap + i * (slot_h + gap)
-                Color(0.06, 0.06, 0.07, 1)
-                Rectangle(pos=(px, y), size=(pw, slot_h))
-                Color(0.17, 0.17, 0.19, 1)
-                Rectangle(pos=(px, y + slot_h - dp(1)), size=(pw, dp(1)))
-
-class AntennaWidget(Widget):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.size_hint = (None, None)
-        self.size = (dp(16), dp(20))
-        self.bind(pos=self._draw, size=self._draw)
-
-    def _draw(self, *args):
-        self.canvas.clear()
-        with self.canvas:
-            Color(*CHASSIS_EDGE)
-            RoundedRectangle(pos=self.pos, size=self.size,
-                             radius=[dp(3), dp(3), dp(2), dp(2)])
-            Color(0.25, 0.25, 0.27, 1)
-            RoundedRectangle(pos=(self.x + dp(3), self.y + dp(2)),
-                             size=(self.width - dp(6), self.height - dp(4)),
-                             radius=[dp(2)])
-
-class PowerButton(Widget):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.is_on = False
-        self.bind(pos=self._draw, size=self._draw)
-
-    def _draw(self, *args):
-        self.canvas.clear()
-        cx, cy   = self.center_x, self.center_y
-        r        = min(self.width, self.height) / 2
-        ring_col = PWR_RING_ON  if self.is_on else PWR_RING_OFF
-        icon_col = PWR_ICON_ON  if self.is_on else PWR_ICON_OFF
-        bg_col   = PWR_BG_ON    if self.is_on else PWR_BG_OFF
-        with self.canvas:
-            Color(0.06, 0.06, 0.07, 1)
-            Ellipse(pos=(cx - r - dp(3), cy - r - dp(3)),
-                    size=((r + dp(3)) * 2, (r + dp(3)) * 2))
-            Color(*ring_col)
-            Ellipse(pos=(cx - r, cy - r), size=(r * 2, r * 2))
-            inner_r = r * 0.84
-            Color(*bg_col)
-            Ellipse(pos=(cx - inner_r, cy - inner_r),
-                    size=(inner_r * 2, inner_r * 2))
-            icon_r   = inner_r * 0.54
-            lw       = dp(3.5)
-            arc_start = 120 - 90
-            arc_end   = 420 - 90
-            Color(*icon_col)
-            Line(ellipse=(cx - icon_r, cy - icon_r,
-                          icon_r * 2, icon_r * 2,
-                          arc_start, arc_end),
-                 width=lw, cap="round")
-            Line(points=[cx, cy - icon_r * 0.05,
-                         cx, cy + icon_r * 1.06],
-                 width=lw, cap="round")
-            if not self.is_on:
-                Color(0.30, 0.08, 0.08, 0.20)
-                Ellipse(pos=(cx - inner_r, cy - inner_r),
-                        size=(inner_r * 2, inner_r * 2))
-
-    def set_state(self, on: bool):
-        self.is_on = on
-        self._draw()
-
-    def on_touch_up(self, touch):
+    def on_touch_down(self,touch):
         if self.collide_point(*touch.pos):
-            if hasattr(self, "_on_press_cb"):
-                self._on_press_cb()
+            if not self.model.is_planted or self.model.is_harvestable:
+                self.parent.free_plot_by_plant(self)
+                self.model.is_planted = False
+                touch.grab(self)
+                return True
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self,touch):
+        if touch.grab_current is self:
+            self.pos = (touch.x-self.width/2,touch.y-self.height/2)
+            return True
+
+    def on_touch_up(self,touch):
+        if touch.grab_current is self:
+            touch.ungrab(self)
+            self.parent.handle_drop(self)
             return True
         return super().on_touch_up(touch)
 
-class VisualizerWidget(Widget):
-    def __init__(self, **kwargs):
+class game(FloatLayout):
+    def __init__(self,**kwargs):
         super().__init__(**kwargs)
-        self.bar_heights    = [0.0] * NUM_BARS
-        self.target_heights = [0.0] * NUM_BARS
-        self.is_speaking    = False
-        self._anim_event    = None
-        self._peak_h        = [0.0] * NUM_BARS
-        self._peak_decay    = [0.0] * NUM_BARS
 
-        self._timeline      = []
-        self._speak_gen     = 0
-        
-        self._bar_instr   = []
-        self._peak_instr  = []
-        self._peak_colors = []
-        self._canvas_ready = False
+        self.info_label = Label(
+            text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)",
+            markup=True,size_hint=(None,None),size=(300,200),
+            pos=(150,10),halign="left",font_size="13sp"
+        )
+        self.add_widget(self.info_label)
 
-        self.bind(pos=self._build_canvas, size=self._build_canvas)
+        self.log_label = Label(
+            text="[b]CRUSHER OF AGONY AND DESPAIR --->[/b]\nCrush a pollinated plant\nto see genetic odds",
+            markup=True,size_hint=(None,None),size=(250,100),
+            halign="center",color=(.8,.8,.8,1)
+        )
+        self.add_widget(self.log_label)
 
-    def _build_canvas(self, *args):
-        if self.width <= 0 or self.height <= 0:
-            return
-        self.canvas.clear()
-        self._bar_instr   = []
-        self._peak_instr  = []
-        self._peak_colors = []
+        self.plot_rects = []
+        self.plot_occupants = [None]*4
 
-        pad_x = dp(8)
-        pad_y = dp(6)
-        aw = self.width  - pad_x * 2
-        ah = self.height - pad_y * 2
-        ax = self.x + pad_x
-        ay = self.y + pad_y
-        gap_total = aw * 0.16
-        gap       = gap_total / (NUM_BARS + 1)
-        bar_w     = (aw - gap_total) / NUM_BARS
-
-        self._vis = (ax, ay, aw, ah, gap, bar_w)
-
-        with self.canvas:
-            for i in range(NUM_BARS):
-                Color(0.09, 0.13, 0.05, 0.90)
-                br = Rectangle(pos=(0, 0), size=(bar_w, dp(4)))
-                self._bar_instr.append(br)
-                Color(0.04, 0.06, 0.02, 0.45)
-                sr = Rectangle(pos=(0, 0), size=(bar_w * 0.20, dp(4)))
-                self._bar_instr.append(sr)
-                pc = Color(0.35, 0.62, 0.10, 0.0)
-                pr = Rectangle(pos=(0, 0), size=(bar_w, dp(3)))
-                self._peak_colors.append(pc)
-                self._peak_instr.append(pr)
-
-        self._canvas_ready = True
-        self._paint_frame()
-
-    def _paint_frame(self):
-        if not self._canvas_ready:
-            return
-        ax, ay, aw, ah, gap, bar_w = self._vis
-        peak_h = dp(3)
-
-        for i in range(NUM_BARS):
-            h  = max(dp(4), self.bar_heights[i] * ah)
-            bx = ax + gap + i * (bar_w + gap)
-            by = ay + (ah - h) / 2
-
-            self._bar_instr[i * 2].pos  = (bx, by)
-            self._bar_instr[i * 2].size = (bar_w, h)
-            self._bar_instr[i * 2 + 1].pos  = (bx, by)
-            self._bar_instr[i * 2 + 1].size = (bar_w * 0.20, h)
-
-            ph = self._peak_h[i]
-            if ph > 0.02:
-                py_peak = ay + (ah - ph * ah) / 2 + ph * ah - peak_h
-                self._peak_instr[i].pos  = (bx, py_peak)
-                self._peak_instr[i].size = (bar_w, peak_h)
-                self._peak_colors[i].a   = 0.90
-            else:
-                self._peak_colors[i].a = 0.0
-
-    def load_phonemes(self, text):
-        self._timeline, _ = build_phoneme_timeline(text)
-
-    def start_speaking(self):
-        self._speak_gen += 1
-        self.is_speaking = True
-        if self._anim_event is None:
-            self._anim_event = Clock.schedule_interval(self._update, 1 / 60)
-        self._fire_keyframe(0, self._speak_gen)
-
-    def _fire_keyframe(self, idx, gen):
-        if gen != self._speak_gen:
-            return
-        if idx >= len(self._timeline):
-            return
-        _, targets = self._timeline[idx]
-        for i in range(NUM_BARS):
-            self.target_heights[i] = targets[i]
-        if idx < len(self._timeline) - 1:
-            delay = max(0.001, self._timeline[idx + 1][0] - self._timeline[idx][0])
-            Clock.schedule_once(
-                lambda dt, i=idx + 1, g=gen: self._fire_keyframe(i, g),
-                delay,
-            )
-
-    def stop_speaking(self):
-        self._speak_gen += 1
-        self.is_speaking = False
-        for i in range(NUM_BARS):
-            self.target_heights[i] = 0.0
-
-    def _update(self, dt):
-        for i in range(NUM_BARS):
-            diff = self.target_heights[i] - self.bar_heights[i]
-            if abs(diff) > 0.002:
-                self.bar_heights[i] += diff * LERP_SPEED
-            else:
-                self.bar_heights[i] = self.target_heights[i]
-
-            if self.bar_heights[i] > self._peak_h[i]:
-                self._peak_h[i]     = self.bar_heights[i]
-                self._peak_decay[i] = 0.0
-            else:
-                self._peak_decay[i] += dt
-                if self._peak_decay[i] > 0.12:
-                    self._peak_h[i] = max(
-                        self.bar_heights[i],
-                        self._peak_h[i] - dt * 0.80,
-                    )
-
-        all_idle = all(h < 0.005 for h in self.bar_heights)
-        if all_idle and not self.is_speaking:
-            if self._anim_event:
-                self._anim_event.cancel()
-                self._anim_event = None
-            self._peak_h     = [0.0] * NUM_BARS
-            self._peak_decay = [0.0] * NUM_BARS
-
-        self._paint_frame()
-
-
-class QueryButton(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.question = ""
-        self.active   = False
-        self.disabled = True
+        self.bind(size=self._update_ui,pos=self._update_ui)
 
         with self.canvas.before:
-            self._edge_c = Color(*QUERY_DIS_EDGE)
-            self._edge_r = RoundedRectangle(
-                pos=self.pos, size=self.size, radius=[dp(5)])
-            self._bg_c   = Color(*QUERY_DIS_BG)
-            self._bg_r   = RoundedRectangle(
-                pos=(self.x + dp(1), self.y + dp(1)),
-                size=(self.width - dp(2), self.height - dp(2)),
-                radius=[dp(4)])
-            self._dot_c  = Color(*QUERY_DIS_EDGE)
-            self._dot_e  = Ellipse(
-                pos=(self.x + dp(8), self.center_y - dp(2)),
-                size=(dp(4), dp(4)))
+            Color(0,.2,0,1)
+            self.bg = Rectangle(size=self.size,pos=self.pos)
+            Color(.4,.3,.2,1)
+            for i in range(4):
+                r = Rectangle()
+                self.plot_rects.append(r)
+        self.crusher = Widget(size_hint=(None,None))
+        with self.crusher.canvas:
+            Color(.5,.2,.2,1)
+            self.crush_rect = Rectangle()
+        self.add_widget(self.crusher)
+        #self.crush_label = Label(text="SEED\nCRUSHER",bold=True,halign="center",font_size="12sp")
+        #self.add_widget(self.crush_label)
+        self.buy_btn = Button(text="SPAWN SEED",size_hint=(None,None),size=(140,50),background_color=(0,.6,1,1),bold=True)
+        self.buy_btn.bind(on_release=self.spawn_initial)
+        self.add_widget(self.buy_btn)
 
-        pad = Widget(size_hint_x=None, width=dp(18))
+    def _update_ui(self,*args):
+        self.bg.size,self.bg.pos = self.size,self.pos
+        self.unit = min(self.width,self.height)/10
 
-        self._label = Label(
-            text="· · ·",
-            font_size=DECENT_FONT,
-            bold=True,
-            halign="center",
-            valign="middle",
-            color=QUERY_DIS_TEXT,
-            size_hint=(1, 1),
-        )
-        self._label.bind(size=self._label.setter("text_size"))
+        plot_sz = self.unit*1.1
+        padding = 25
+        start_y = (self.height-(4*plot_sz+3*padding))/1.3
+        for i,rect in enumerate(self.plot_rects):
+            rect.size = (plot_sz,plot_sz)
+            rect.pos = (50,start_y+i*(plot_sz+padding))
 
-        self.add_widget(pad)
-        self.add_widget(self._label)
+        crush_sz = self.unit*1.8
+        self.crusher.size = (crush_sz,crush_sz)
+        self.crusher.pos = (self.width-crush_sz-30,self.height-crush_sz-30)
 
-        self.bind(pos=self._upd_bg, size=self._upd_bg)
+        self.crush_rect.pos = self.crusher.pos
+        self.crush_rect.size = self.crusher.size
+        #self.crush_label.center_x = self.crusher.center_x
+        #self.crush_label.top = self.crusher.center_y-100
 
-    def _upd_bg(self, *args):
-        self._edge_r.pos  = self.pos
-        self._edge_r.size = self.size
-        self._bg_r.pos    = (self.x + dp(1), self.y + dp(1))
-        self._bg_r.size   = (self.width - dp(2), self.height - dp(2))
-        self._dot_e.pos   = (self.x + dp(8), self.center_y - dp(2))
+        self.buy_btn.pos = (self.width-self.buy_btn.width-20,20)
+        self.info_label.pos = (150,10)
+        self.log_label.center_x = self.crusher.x-200
+        self.log_label.center_y = self.crusher.center_y
 
-    def _apply_style(self):
-        if self.disabled:
-            e, b, d, tc = QUERY_DIS_EDGE, QUERY_DIS_BG, QUERY_DIS_EDGE, QUERY_DIS_TEXT
-        elif self.active:
-            e, b, d, tc = QUERY_ACTIVE_EDGE, QUERY_ACTIVE_BG, QUERY_ACTIVE_EDGE, QUERY_TEXT_ACT
-        else:
-            e, b, d, tc = QUERY_EDGE, QUERY_BG, QUERY_EDGE, QUERY_TEXT
-        self._edge_c.rgba  = list(e)
-        self._bg_c.rgba    = list(b)
-        self._dot_c.rgba   = list(d)
-        self._label.color  = tc
+        if hasattr(self,"table_container"):
+            self.table_container.center_x = self.log_label.center_x-60
+            self.table_container.top = self.log_label.y-60
 
-    def set_active(self, active: bool):
-        self.active = active
-        self._apply_style()
+    def spawn_initial(self,*args):
+        c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
+        pw = plantwidget(plantmodel(c,h))
+        pw.center = (self.width*.7+random.randint(1,50),100+random.randint(1,50))
+        self.add_widget(pw)
 
-    def set_disabled(self, disabled: bool):
-        self.disabled = disabled
-        self._apply_style()
+    def free_plot_by_plant(self,plant):
+        for i,occupant in enumerate(self.plot_occupants):
+            if occupant == plant:
+                self.plot_occupants[i] = None
 
-    def set_text(self, text: str, question: str):
-        self._label.text = text
-        self.question    = question
-        self._apply_style()
+    def handle_drop(self,plant):
+        if self.crusher.collide_widget(plant):
+            if plant.model.pollinated_by:
+                self.breed_new_seed(plant.model,plant.model.pollinated_by)
+                self.remove_widget(plant)
+            return
+        if plant.model.is_harvestable:
+            for child in self.children:
+                if isinstance(child,plantwidget) and child != plant and child.model.is_harvestable:
+                    if plant.collide_widget(child):
+                        plant.model.pollinated_by = child.model
+                        child.model.pollinated_by = plant.model
+                        plant.update_view(0)
+                        child.update_view(0)
+                        return
 
-    def on_touch_up(self, touch):
-        if self.collide_point(*touch.pos) and not self.disabled:
-            if hasattr(self, "_on_press_cb"):
-                self._on_press_cb(self)
-            return True
-        return super().on_touch_up(touch)
+        for i,rect in enumerate(self.plot_rects):
+            rx,ry = rect.pos
+            rw,rh = rect.size
+            px,py = plant.center
+            if rx <= px <= rx+rw and ry <= py <= ry+rh:
+                if self.plot_occupants[i] is None and not plant.model.is_harvestable:
+                    plant.center = (rx+rw/2,ry+rh/2)
+                    plant.model.is_planted = True
+                    self.plot_occupants[i] = plant
+                    return
 
-class SpiritBoxApp(App):
+    def get_gametes(self,model):
+        gametes = []
+        for c in model.color_genes:
+            for h in model.height_genes:
+                gametes.append(c+h)
+        return gametes,model.color_genes+model.height_genes
+
+    def update_punnett_table(self,m1,m2,result_geno):
+        self.log_label.text = ""
+        grid = GridLayout(cols=5,spacing=2,size_hint=(None,None))
+        grid.bind(minimum_size=grid.setter("size"))
+        g1,t1 = self.get_gametes(m1)
+        g2,t2 = self.get_gametes(m2)
+        grid.add_widget(Label(text="",size_hint_y=None,height=30))
+        for gamete in g2:
+            grid.add_widget(Label(text=gamete,bold=True,color=(0,.8,1,1),size_hint_y=None,height=30))
+        total_cells = 16
+        matches = 0
+        for row_gamete in g1:
+            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=40))
+            for col_gamete in g2:
+                c = "".join(sorted(row_gamete[0]+col_gamete[0]))
+                h = "".join(sorted(row_gamete[1]+col_gamete[1]))
+                cell_geno = c+h
+                is_match = (cell_geno == result_geno)
+                if is_match: matches += 1
+                lbl = Label(
+                    text=cell_geno,
+                    color=(0,1,0,1) if is_match else (1,1,1,1),
+                    font_size="10sp",
+                    size_hint=(None,None),size=(50,30)
+                )
+                grid.add_widget(lbl)
+        percent = (matches/total_cells)*100
+        self.log_label.text = f"{t1} + {t2}\n[b]Result: {result_geno}[/b]\nChance: {percent:.1f}%"
+        if hasattr(self,"table_container"): self.remove_widget(self.table_container)
+        self.table_container = grid
+        self.table_container.center_x = self.log_label.center_x-60
+        self.table_container.top = self.log_label.y-60
+        self.add_widget(self.table_container)
+
+    def breed_new_seed(self,m1,m2):
+        new_c = crossover(m1.color_genes,m2.color_genes)
+        new_h = crossover(m1.height_genes,m2.height_genes)
+        result_genotype = new_c+new_h
+        self.update_punnett_table(m1,m2,result_genotype)
+        child = plantwidget(plantmodel(new_c,new_h))
+        child.center = (self.crusher.center_x+random.randint(1,50),self.crusher.y-250+random.randint(1,50))
+        self.add_widget(child)
+
+class app(App):
     def build(self):
-        self.title          = "SPIRIT BOX"
-        self.is_powered     = False
-        self.is_busy        = False
-        self._static_sound  = None
-        self._scare_sound   = None
-        self._jumpscare_active = False
-
-        self._static_wav_path  = _generate_wav(30.0, 22050, 5000, "flat")
-        self._scare_wav_path   = _generate_wav(5.0, 22050, 32000, "burst")
-
-        root = self._build_ui()
-        Clock.schedule_once(lambda dt: self._refresh_questions(), 0.3)
-        Clock.schedule_once(lambda dt: self._preload_sounds(), 0.5)
-        Clock.schedule_once(lambda dt: init_tts(), 0.5)
-        return root
-
-    def _preload_sounds(self):
-        self._static_sound = SoundLoader.load(self._static_wav_path)
-        if self._static_sound:
-            self._static_sound.loop   = True
-            self._static_sound.volume = 0.09
-
-        self._scare_sound = SoundLoader.load(self._scare_wav_path)
-        if self._scare_sound:
-            self._scare_sound.loop   = False
-            self._scare_sound.volume = 1.0
-
-    def _start_static(self):
-        if self._static_sound and self._static_sound.state != "play":
-            self._static_sound.play()
-
-    def _stop_static(self):
-        if self._static_sound and self._static_sound.state == "play":
-            self._static_sound.stop()
-
-    def _build_ui(self):
-        root = BoxLayout(
-            orientation="vertical",
-            padding=[dp(14), dp(12), dp(14), dp(140)],
-            spacing=dp(12),
-        )
-        with root.canvas.before:
-            Color(*CHASSIS_TOP)
-            self._bg = Rectangle(pos=root.pos, size=root.size)
-        root.bind(pos=self._upd_bg, size=self._upd_bg)
-
-        root.add_widget(self._make_top_bar())
-        root.add_widget(self._make_lcd())
-        root.add_widget(self._make_power_zone())
-        root.add_widget(self._make_query_section())
-        root.add_widget(self._make_grille_footer())
-        return root
-
-    def _upd_bg(self, inst, val):
-        self._bg.pos  = inst.pos
-        self._bg.size = inst.size
-
-    def _make_top_bar(self):
-        row = BoxLayout(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=dp(38),
-        )
-        row.add_widget(AntennaWidget())
-
-        center = BoxLayout(orientation="vertical")
-        title = Label(
-            text="[b]SPIRIT BOX[/b]", markup=True,
-            font_size=DECENTER_FONT, color=(0.62, 0.68, 0.60, 1),
-            halign="center", valign="middle",
-        )
-        title.bind(size=title.setter("text_size"))
-        sub = Label(
-            text="MODEL XC2816-67",
-            font_size=NORMAL_FONT, color=(0.30, 0.34, 0.28, 1),
-            halign="center", valign="middle",
-        )
-        sub.bind(size=sub.setter("text_size"))
-        center.add_widget(title)
-        center.add_widget(sub)
-        row.add_widget(center)
-
-        right = BoxLayout(size_hint_x=None, width=dp(22))
-        right.add_widget(ScrewWidget(size_dp=9))
-        row.add_widget(right)
-        return row
-
-    def _make_lcd(self):
-        lcd_outer = BoxLayout(size_hint_y=None, height=dp(300))
-
-        with lcd_outer.canvas.before:
-            self._lcd_border_c = Color(*LCD_BORDER_OFF)
-            self._lcd_border_r = RoundedRectangle(
-                pos=lcd_outer.pos, size=lcd_outer.size, radius=[dp(6)])
-            self._lcd_bg_c = Color(*LCD_GREEN_OFF)
-            self._lcd_bg_r = RoundedRectangle(
-                pos=(lcd_outer.x + dp(3), lcd_outer.y + dp(3)),
-                size=(lcd_outer.width - dp(6), lcd_outer.height - dp(6)),
-                radius=[dp(4)])
-
-        lcd_outer.bind(pos=self._upd_lcd, size=self._upd_lcd)
-
-        inner = BoxLayout(
-            orientation="vertical",
-            padding=[dp(10), dp(8), dp(10), dp(8)],
-            spacing=dp(4),
-        )
-
-        top_row = BoxLayout(size_hint_y=None, height=dp(18), spacing=dp(4))
-        self._status_lbl = Label(
-            text="STANDBY", font_size=COMMON_FONT, color=LCD_TEXT_OFF,
-            bold=True, halign="left", valign="middle",
-        )
-        self._status_lbl.bind(size=self._status_lbl.setter("text_size"))
-        self._mode_lbl = Label(
-            text="FM SWEEP", font_size=COMMON_FONT, color=LCD_TEXT_OFF,
-            halign="center", valign="middle",
-        )
-        self._mode_lbl.bind(size=self._mode_lbl.setter("text_size"))
-        self._freq_lbl = Label(
-            text="---.-- MHz", font_size=COMMON_FONT, color=LCD_TEXT_OFF,
-            bold=True, halign="right", valign="middle",
-        )
-        self._freq_lbl.bind(size=self._freq_lbl.setter("text_size"))
-        top_row.add_widget(self._status_lbl)
-        top_row.add_widget(self._mode_lbl)
-        top_row.add_widget(self._freq_lbl)
-
-        self._visualizer = VisualizerWidget()
-
-        self._response_lbl = Label(
-            text="", font_size=BIG_FONT, bold=True, color=LCD_TEXT_OFF,
-            halign="center", valign="middle",
-            size_hint_y=None, height=dp(30),
-        )
-        self._response_lbl.bind(size=self._response_lbl.setter("text_size"))
-
-        inner.add_widget(top_row)
-        inner.add_widget(self._visualizer)
-        inner.add_widget(self._response_lbl)
-        lcd_outer.add_widget(inner)
-        return lcd_outer
-
-    def _upd_lcd(self, inst, val):
-        self._lcd_border_r.pos  = inst.pos
-        self._lcd_border_r.size = inst.size
-        self._lcd_bg_r.pos  = (inst.x + dp(3), inst.y + dp(3))
-        self._lcd_bg_r.size = (inst.width - dp(6), inst.height - dp(6))
-
-    def _make_power_zone(self):
-        zone = BoxLayout(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=dp(82),
-            spacing=dp(8),
-        )
-        left = BoxLayout(orientation="vertical", size_hint_x=0.38)
-        self._pwr_status_lbl = Label(
-            text="POWER OFF", font_size=COMMON_FONT,
-            color=(0.38, 0.15, 0.15, 1), bold=True,
-            halign="left", valign="middle",
-        )
-        self._pwr_status_lbl.bind(size=self._pwr_status_lbl.setter("text_size"))
-        serial = Label(
-            text="2026-0415-420\nFM/AM 76-108",
-            font_size=NORMAL_FONT, color=(0.25, 0.27, 0.24, 1),
-            halign="left", valign="middle",
-        )
-        serial.bind(size=serial.setter("text_size"))
-        left.add_widget(self._pwr_status_lbl)
-        left.add_widget(serial)
-
-        btn_wrap = BoxLayout(
-            orientation="vertical", size_hint_x=0.26,
-            padding=[dp(6), dp(6), dp(6), dp(6)],
-        )
-        self._power_btn = PowerButton()
-        self._power_btn._on_press_cb = self._toggle_power
-        btn_wrap.add_widget(self._power_btn)
-
-        right = BoxLayout(orientation="vertical", size_hint_x=0.36)
-        sweep = Label(
-            text="SWEEP RATE\n100ms",
-            font_size=NORMAL_FONT, color=(0.25, 0.27, 0.24, 1),
-            halign="right", valign="middle",
-        )
-        sweep.bind(size=sweep.setter("text_size"))
-        scr_row = BoxLayout(size_hint_y=None, height=dp(12))
-        scr_row.add_widget(Widget())
-        scr_row.add_widget(ScrewWidget(size_dp=8))
-        right.add_widget(sweep)
-        right.add_widget(scr_row)
-
-        zone.add_widget(left)
-        zone.add_widget(btn_wrap)
-        zone.add_widget(right)
-        return zone
-
-    def _make_query_section(self):
-        section_h = dp(16) + 3 * dp(52) + 3 * dp(7)
-        outer = BoxLayout(
-            orientation="vertical",
-            size_hint_y=None,
-            height=section_h,
-            spacing=dp(7),
-        )
-
-        hdr_row = BoxLayout(size_hint_y=None, height=dp(16))
-        hdr_row.add_widget(ScrewWidget(size_dp=7))
-        hdr = Label(
-            text="QUESTION SELECTION",
-            font_size=NORMALISH_FONT, color=(0.30, 0.34, 0.28, 1),
-            bold=True, halign="center", valign="middle",
-        )
-        hdr.bind(size=hdr.setter("text_size"))
-        hdr_row.add_widget(hdr)
-        hdr_row.add_widget(ScrewWidget(size_dp=7))
-        outer.add_widget(hdr_row)
-
-        self._query_btns = []
-        for _ in range(3):
-            btn = QueryButton(
-                orientation="horizontal",
-                size_hint_y=None,
-                height=dp(52),
-            )
-            btn._on_press_cb = self._on_query
-            self._query_btns.append(btn)
-            outer.add_widget(btn)
-
-        return outer
-
-    def _make_grille_footer(self):
-        foot = BoxLayout(
-            orientation="vertical",
-            size_hint_y=None,
-            height=dp(46),
-            spacing=dp(4),
-        )
-        foot.add_widget(GrilleWidget(rows=5, size_hint_y=None, height=dp(32)))
-        note = Label(
-            text="BULLSHIT INC  ·  MODEL XC2816-67  ·  IDIOTIC USE ONLY",
-            font_size=SMALL_FONT, color=(0.20, 0.22, 0.18, 1),
-            halign="center", valign="middle",
-            size_hint_y=None, height=dp(12),
-        )
-        note.bind(size=note.setter("text_size"))
-        foot.add_widget(note)
-        return foot
-        
-    def _refresh_questions(self):
-        pool = list(QUESTIONS.keys())
-        random.shuffle(pool)
-        for i, btn in enumerate(self._query_btns):
-            btn.set_text(pool[i].upper(), pool[i])
-
-    def _toggle_power(self, *args):
-        if self.is_powered:
-            return
-        self.is_powered = not self.is_powered
-        self._power_btn.set_state(self.is_powered)
-        if self.is_powered:
-            self._lcd_border_c.rgba = list(LCD_BORDER_ON)
-            self._lcd_bg_c.rgba     = list(LCD_GREEN_ON)
-            self._set_lcd_text(LCD_TEXT_ON)
-            self._status_lbl.text      = "SCANNING"
-            self._mode_lbl.text        = "FM SWEEP"
-            self._freq_lbl.text        = f"{random.uniform(76.0, 108.0):.2f} MHz"
-            self._pwr_status_lbl.text  = "POWER ON"
-            self._pwr_status_lbl.color = (0.18, 0.72, 0.28, 1)
-            for btn in self._query_btns:
-                btn.set_disabled(False)
-            self._start_static()
-        else:
-            self._lcd_border_c.rgba = list(LCD_BORDER_OFF)
-            self._lcd_bg_c.rgba     = list(LCD_GREEN_OFF)
-            self._set_lcd_text(LCD_TEXT_OFF)
-            self._status_lbl.text      = "STANDBY"
-            self._mode_lbl.text        = "FM SWEEP"
-            self._freq_lbl.text        = "---.-- MHz"
-            self._response_lbl.text    = ""
-            self._pwr_status_lbl.text  = "POWER OFF"
-            self._pwr_status_lbl.color = (0.38, 0.15, 0.15, 1)
-            self._visualizer.stop_speaking()
-            for btn in self._query_btns:
-                btn.set_disabled(True)
-                btn.set_active(False)
-            self.is_busy = False
-            self._stop_static()
-
-    def _set_lcd_text(self, color):
-        self._status_lbl.color   = color
-        self._mode_lbl.color     = color
-        self._freq_lbl.color     = color
-        self._response_lbl.color = color
-
-    def _on_query(self, btn):
-        if not self.is_powered or self.is_busy or self._jumpscare_active:
-            return
-
-        if random.random() < 0.02:
-            self._trigger_jumpscare()
-            return
-
-        question = btn.question
-        category = QUESTIONS.get(question, "sign")
-        response = random.choice(GHOST_RESPONSES[category])
-        delay    = random.uniform(1.5, 3.0)
-
-        self._visualizer.load_phonemes(response)
-
-        self.is_busy = True
-        for b in self._query_btns:
-            b.set_disabled(True)
-            b.set_active(False)
-        btn.set_active(True)
-
-        self._status_lbl.text   = "SCANNING..."
-        self._response_lbl.text = "· · ·"
-        self._freq_lbl.text     = f"{random.uniform(76.0, 108.0):.2f} MHz"
-
-        threading.Thread(
-            target=self._ghost_sequence,
-            args=(response, delay, btn),
-            daemon=True,
-        ).start()
-
-    def _trigger_jumpscare(self):
-        self._jumpscare_active = True
-        self.is_busy = True
-
-        for b in self._query_btns:
-            b.set_disabled(True)
-            b.set_active(False)
-
-        self._stop_static()
-
-        if self._scare_sound:
-            self._scare_sound.volume = 1.0
-            self._scare_sound.play()
-
-        response = random.choice(JUMPSCARE_RESPONSES)
-
-        self._lcd_border_c.rgba = [0.90, 0.05, 0.05, 1]
-        self._lcd_bg_c.rgba     = [0.60, 0.02, 0.02, 1]
-        self._status_lbl.color  = (1, 0, 0, 1)
-        self._mode_lbl.color    = (1, 0, 0, 1)
-        self._freq_lbl.color    = (1, 0, 0, 1)
-        self._response_lbl.color = (1, 1, 1, 1)
-        self._status_lbl.text   = ">> INTRUSION"
-        self._freq_lbl.text     = "!!!!!!! MHz"
-        self._response_lbl.text = response
-
-        self._visualizer.load_phonemes(response)
-        self._visualizer.start_speaking()
-
-        Clock.schedule_once(self._jumpscare_shutdown, 4.0)
-
-    def _jumpscare_shutdown(self, dt):
-        self._visualizer.stop_speaking()
-        self._response_lbl.text = "IT IS HERE"
-        self._status_lbl.text   = "SIGNAL LOST"
-        self._freq_lbl.text     = "--- --- ---"
-
-        Clock.schedule_once(self._do_shutdown, 1.5)
-
-    def _do_shutdown(self, dt):
-        self._jumpscare_active = False
-        self.is_busy    = False
-        self.is_powered = False
-        self._power_btn.set_state(False)
-        self._lcd_border_c.rgba    = list(LCD_BORDER_OFF)
-        self._lcd_bg_c.rgba        = list(LCD_GREEN_OFF)
-        self._set_lcd_text(LCD_TEXT_OFF)
-        self._status_lbl.text      = "STANDBY"
-        self._mode_lbl.text        = "FM SWEEP"
-        self._freq_lbl.text        = "---.-- MHz"
-        self._response_lbl.text    = ""
-        self._pwr_status_lbl.text  = "POWER OFF"
-        self._pwr_status_lbl.color = (0.38, 0.15, 0.15, 1)
-        self._visualizer.stop_speaking()
-        for b in self._query_btns:
-            b.set_disabled(True)
-            b.set_active(False)
-        self._stop_static()
-
-    def _ghost_sequence(self, response, delay, btn):
-        time.sleep(delay)
-        Clock.schedule_once(lambda dt: self._on_speak_start(response), 0)
-
-        spoken = False
-        try:
-                speakf(response) #p = multiprocessing.Process(target=speakf, args=(response,)); p.start(); p.join()
-        except Exception as e:
-            print(f"TTS error: {e}")
-
-        if not spoken:
-            est = max(1.5, len(response.split()) * 0.70)
-            time.sleep(est)
-
-        Clock.schedule_once(lambda dt: self._on_speak_end(btn), 0)
-
-    def _on_speak_start(self, response):
-        self._response_lbl.text = response
-        self._status_lbl.text   = ">> CONTACT"
-        self._freq_lbl.text     = f"{random.uniform(76.0, 108.0):.2f} MHz"
-        self._visualizer.start_speaking()
-
-    def _on_speak_end(self, btn):
-        self._visualizer.stop_speaking()
-        self._status_lbl.text = "STANDBY"
-        btn.set_active(False)
-        self.is_busy = False
-        self._refresh_questions()
-        if self.is_powered:
-            for b in self._query_btns:
-                b.set_disabled(False)
+        return game()
 
 if __name__ == "__main__":
-    SpiritBoxApp().run()
+    app().run()
