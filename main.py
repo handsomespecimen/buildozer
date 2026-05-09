@@ -20,7 +20,7 @@ class plantmodel:
         self.height_genes = "".join(sorted(height_genes))
         self.age = 0
         self.is_planted = False
-        self.is_harvestable = False
+        self.harvestable = False
         self.pollinated_by = None
 
     @property
@@ -35,7 +35,7 @@ class plantmodel:
         if self.is_planted and self.age < 30:
             self.age += dt*2
             if self.age >= 30:
-                self.is_harvestable = True
+                self.harvestable = True
 
 class plantwidget(Widget):
     def __init__(self,model,**kwargs):
@@ -44,8 +44,7 @@ class plantwidget(Widget):
         self.size = (80,80)
         self.size_hint = (None,None)
 
-        self.gene_label = Label(text=f"{self.model.color_genes}\n{self.model.height_genes}",
-                                color=(1,1,1,.7),font_size="10sp",bold=True,halign="center")
+        self.gene_label = Label(text=f"{self.model.color_genes}\n{self.model.height_genes}",color=(1,1,1,.7),font_size="10sp",bold=True,halign="center")
         self.add_widget(self.gene_label)
 
         self.canvas_group = InstructionGroup()
@@ -99,7 +98,7 @@ class plantwidget(Widget):
 
     def on_touch_down(self,touch):
         if self.collide_point(*touch.pos):
-            if not self.model.is_planted or self.model.is_harvestable:
+            if not self.model.is_planted or self.model.harvestable:
                 self.parent.free_plot_by_plant(self)
                 self.model.is_planted = False
                 touch.grab(self)
@@ -124,9 +123,9 @@ class game(FloatLayout):
 
         self.info_label = Label(
             text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)",
-            markup=True,size_hint=(None,None),size=(200,100),
+            markup=True,size_hint=(None,None),size=(100,100),
             pos=(150,10),halign="left"
-		)
+        )
         self.add_widget(self.info_label)
 
         self.log_label = Label(
@@ -137,7 +136,7 @@ class game(FloatLayout):
         self.add_widget(self.log_label)
 
         self.plot_rects = []
-        self.plot_occupants = [None]*4
+        self.plot_occupants = [None]*8
 
         self.bind(size=self._update_ui,pos=self._update_ui)
 
@@ -160,53 +159,41 @@ class game(FloatLayout):
         self.add_widget(self.buy_btn)
 
     def _update_ui(self,*args):
-	    self.bg.size = self.size
-	    self.bg.pos = self.pos
-	    w = self.width
-	    h = self.height
-	    self.unit = min(w,h) * 0.08
-	    plot_sz = self.unit * 1.2
-	    spacing = self.unit * 0.3
-	    total_h = plot_sz * 4 + spacing * 4
-	    start_y = (h - total_h) * .9
-	    plot_x = w * 0.05
-		plot_x2 = plot_x + plot_sz + spacing
-	    for i,rect in enumerate(self.plot_rects):
-			row_x = plot_x if i < 4 else plot_x2
-	        rect.size = (plot_sz,plot_sz)
-	        rect.pos = (
-	            row_x,
-	            start_y + i * (plot_sz + spacing)
-	        )
-	    crush_sz = self.unit * 2
-	    self.crusher.size = (crush_sz,crush_sz)
-	    self.crusher.pos = (
-	        w - crush_sz - self.unit * 0.4,
-	        h - crush_sz - self.unit * 0.4
-	    )
-	    self.crush_rect.pos = self.crusher.pos
-	    self.crush_rect.size = self.crusher.size
-	    self.buy_btn.size = (self.unit * 3.5, self.unit * 0.9)
-	    self.buy_btn.font_size = f"{self.unit * 0.22}sp"
-	    self.buy_btn.pos = (
-	        w - self.buy_btn.width - self.unit * 0.3,
-	        self.unit * 0.3
-	    )
-	    self.info_label.text_size = (w * 0.25, None)
-	    self.info_label.font_size = f"{self.unit * 0.18}sp"
-	    self.info_label.pos = (
-	        w * 0.12,
-	        self.unit * 1.2
-	    )
-	    self.log_label.text_size = (w * 0.25, None)
-	    self.log_label.font_size = f"{self.unit * 0.2}sp"
-	    self.log_label.center_x = self.crusher.x - w * 0.15
-	    self.log_label.center_y = self.crusher.center_y
-	    
-	    if hasattr(self,"table_container"):
-	        self.table_container.scale = min(w,h) / 800
-	        self.table_container.center_x = self.log_label.center_x
-	        self.table_container.top = self.log_label.y - self.unit * .95
+        self.bg.size = self.size
+        self.bg.pos = self.pos
+        w = self.width
+        h = self.height
+        self.unit = min(w,h)*.08
+        plot_sz = self.unit*1.2
+        spacing = self.unit*.5
+        total_h = plot_sz*4+spacing*4
+        start_y = (h-total_h)*.9
+        plot_x = w*.05
+        plot_x2 = plot_x+plot_sz+spacing
+        for i,rect in enumerate(self.plot_rects):
+            row_x = plot_x if i < 4 else plot_x2
+            rect.size = (plot_sz,plot_sz)
+            rect.pos = (row_x,start_y+i%4*(plot_sz+spacing))
+        crush_sz = self.unit*2
+        self.crusher.size = (crush_sz,crush_sz)
+        self.crusher.pos = (w-crush_sz-self.unit*.4,h-crush_sz-self.unit*.4)
+        self.crush_rect.pos = self.crusher.pos
+        self.crush_rect.size = self.crusher.size
+        self.buy_btn.size = (self.unit*3.5,self.unit*.9)
+        self.buy_btn.font_size = f"{self.unit*.22}sp"
+        self.buy_btn.pos = (w-self.buy_btn.width-self.unit*.3,self.unit*.3)
+        self.info_label.text_size = (w*.3,None)
+        self.info_label.font_size = f"{self.unit*.24}sp"
+        self.info_label.pos = (w*.167,self.unit*1)
+        self.log_label.text_size = (w*.25,None)
+        self.log_label.font_size = f"{self.unit*.2}sp"
+        self.log_label.center_x = self.crusher.x-w*.15
+        self.log_label.center_y = self.crusher.center_y
+
+        if hasattr(self,"table_container"):
+            self.table_container.scale = min(w,h)/800
+            self.table_container.center_x = self.log_label.center_x+self.unit*.13
+            self.table_container.top = self.log_label.y-self.unit*.8
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
@@ -225,9 +212,9 @@ class game(FloatLayout):
                 self.breed_new_seed(plant.model,plant.model.pollinated_by)
                 self.remove_widget(plant)
             return
-        if plant.model.is_harvestable:
+        if plant.model.harvestable:
             for child in self.children:
-                if isinstance(child,plantwidget) and child != plant and child.model.is_harvestable:
+                if isinstance(child,plantwidget) and child != plant and child.model.harvestable:
                     if plant.collide_widget(child):
                         plant.model.pollinated_by = child.model
                         child.model.pollinated_by = plant.model
@@ -240,7 +227,7 @@ class game(FloatLayout):
             rw,rh = rect.size
             px,py = plant.center
             if rx <= px <= rx+rw and ry <= py <= ry+rh:
-                if self.plot_occupants[i] is None and not plant.model.is_harvestable:
+                if self.plot_occupants[i] is None and not plant.model.harvestable:
                     plant.center = (rx+rw/2,ry+rh/2)
                     plant.model.is_planted = True
                     self.plot_occupants[i] = plant
@@ -255,33 +242,36 @@ class game(FloatLayout):
 
     def update_punnett_table(self,m1,m2,result_geno):
         self.log_label.text = ""
-        grid = GridLayout(cols=5,spacing=2,size_hint=(None,None))
+        self.unit2 = self.unit/2
+        grid = GridLayout(cols=5,spacing=self.unit/20,size_hint=(None,None))
         grid.bind(minimum_size=grid.setter("size"))
         g1,t1 = self.get_gametes(m1)
         g2,t2 = self.get_gametes(m2)
-        grid.add_widget(Label(text="",size_hint_y=None,height=40))
+        grid.add_widget(Label(text="",size_hint_y=None,height=self.unit2))
         for gamete in g2:
-            grid.add_widget(Label(text=gamete,bold=True,color=(0,.8,1,1),size_hint_y=None,height=40))
+            grid.add_widget(Label(text=gamete,bold=True,color=(0,.8,1,1),size_hint_y=None,height=self.unit2))
         total_cells = 16
         matches = 0
         for row_gamete in g1:
-            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=50))
+            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=self.unit2))
             for col_gamete in g2:
                 c = "".join(sorted(row_gamete[0]+col_gamete[0]))
                 h = "".join(sorted(row_gamete[1]+col_gamete[1]))
                 cell_geno = c+h
                 is_match = (cell_geno == result_geno)
-                if is_match: matches += 1
+                if is_match:
+                    matches += 1
                 lbl = Label(
                     text=cell_geno,
                     color=(0,1,0,1) if is_match else (1,1,1,1),
-                    font_size="{self.unit * 0.2}sp",
-                    size_hint=(None,None),size=(60,40)
+                    font_size=f"{self.unit*.2}sp",
+                    size_hint=(None,None),size=(self.unit2,self.unit2)
                 )
                 grid.add_widget(lbl)
         percent = (matches/total_cells)*100
-        self.log_label.text = f"{t1} + {t2}\n[b]Result: {result_geno}[/b]\nChance: {percent:.1f}%"
-        if hasattr(self,"table_container"): self.remove_widget(self.table_container)
+        self.log_label.text = f"{t1}+{t2}\n[b]Result: {result_geno}[/b]\nChance: {percent:.1f}%"
+        if hasattr(self,"table_container"):
+            self.remove_widget(self.table_container)
         self.table_container = grid
         self.table_container.center_x = self.log_label.center_x-60
         self.table_container.top = self.log_label.y-60
@@ -293,7 +283,7 @@ class game(FloatLayout):
         result_genotype = new_c+new_h
         self.update_punnett_table(m1,m2,result_genotype)
         child = plantwidget(plantmodel(new_c,new_h))
-        child.center = (self.crusher.center_x+random.randint(1,50),self.crusher.y-250+random.randint(1,50))
+        child.center = (self.crusher.center_x+random.randint(1,round(self.unit)),self.crusher.y-self.unit*2+random.randint(1,round(self.unit)))
         self.add_widget(child)
 
 class app(App):
