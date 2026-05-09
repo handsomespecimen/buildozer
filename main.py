@@ -204,7 +204,7 @@ class game(FloatLayout):
 	    if hasattr(self,"table_container"):
 	        self.table_container.scale = min(w,h) / 800
 	        self.table_container.center_x = self.log_label.center_x
-	        self.table_container.top = self.log_label.y - self.unit * 0.8
+	        self.table_container.top = self.log_label.y - self.unit * .95
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
@@ -257,13 +257,13 @@ class game(FloatLayout):
         grid.bind(minimum_size=grid.setter("size"))
         g1,t1 = self.get_gametes(m1)
         g2,t2 = self.get_gametes(m2)
-        grid.add_widget(Label(text="",size_hint_y=None,height=30))
+        grid.add_widget(Label(text="",size_hint_y=None,height=40))
         for gamete in g2:
-            grid.add_widget(Label(text=gamete,bold=True,color=(0,.8,1,1),size_hint_y=None,height=30))
+            grid.add_widget(Label(text=gamete,bold=True,color=(0,.8,1,1),size_hint_y=None,height=40))
         total_cells = 16
         matches = 0
         for row_gamete in g1:
-            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=40))
+            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=50))
             for col_gamete in g2:
                 c = "".join(sorted(row_gamete[0]+col_gamete[0]))
                 h = "".join(sorted(row_gamete[1]+col_gamete[1]))
@@ -273,8 +273,8 @@ class game(FloatLayout):
                 lbl = Label(
                     text=cell_geno,
                     color=(0,1,0,1) if is_match else (1,1,1,1),
-                    font_size="10sp",
-                    size_hint=(None,None),size=(50,30)
+                    font_size="{self.unit * 0.2}sp",
+                    size_hint=(None,None),size=(60,40)
                 )
                 grid.add_widget(lbl)
         percent = (matches/total_cells)*100
