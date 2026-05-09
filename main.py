@@ -145,7 +145,7 @@ class game(FloatLayout):
             Color(0,.2,0,1)
             self.bg = Rectangle(size=self.size,pos=self.pos)
             Color(.4,.3,.2,1)
-            for i in range(4):
+            for i in range(8):
                 r = Rectangle()
                 self.plot_rects.append(r)
         self.crusher = Widget(size_hint=(None,None))
@@ -170,10 +170,12 @@ class game(FloatLayout):
 	    total_h = plot_sz * 4 + spacing * 4
 	    start_y = (h - total_h) * .9
 	    plot_x = w * 0.05
+		plot_x2 = plot_x + plot_sz + spacing
 	    for i,rect in enumerate(self.plot_rects):
+			row_x = plot_x if i < 4 else plot_x2
 	        rect.size = (plot_sz,plot_sz)
 	        rect.pos = (
-	            plot_x,
+	            row_x,
 	            start_y + i * (plot_sz + spacing)
 	        )
 	    crush_sz = self.unit * 2
