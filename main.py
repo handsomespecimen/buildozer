@@ -182,8 +182,8 @@ class game(FloatLayout):
         self.buy_btn.size = (self.unit*3.5,self.unit*.9)
         self.buy_btn.font_size = f"{self.unit*.22}sp"
         self.buy_btn.pos = (w-self.buy_btn.width-self.unit*.3,self.unit*.3)
-        self.info_label.text_size = (w*.3,None)
-        self.info_label.font_size = f"{self.unit*.24}sp"
+        self.info_label.text_size = (w*.5,None)
+        self.info_label.font_size = f"{self.unit*.1}sp"
         self.info_label.pos = (w*.167,self.unit*1)
         self.log_label.text_size = (w*.25,None)
         self.log_label.font_size = f"{self.unit*.2}sp"
@@ -243,7 +243,7 @@ class game(FloatLayout):
     def update_punnett_table(self,m1,m2,result_geno):
         self.log_label.text = ""
         self.unit2 = self.unit/2
-        grid = GridLayout(cols=5,spacing=self.unit/20,size_hint=(None,None))
+        grid = GridLayout(cols=5,spacing=self.unit/10,size_hint=(None,None))
         grid.bind(minimum_size=grid.setter("size"))
         g1,t1 = self.get_gametes(m1)
         g2,t2 = self.get_gametes(m2)
@@ -253,7 +253,7 @@ class game(FloatLayout):
         total_cells = 16
         matches = 0
         for row_gamete in g1:
-            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=self.unit2))
+            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=self.unit2*2))
             for col_gamete in g2:
                 c = "".join(sorted(row_gamete[0]+col_gamete[0]))
                 h = "".join(sorted(row_gamete[1]+col_gamete[1]))
@@ -265,7 +265,7 @@ class game(FloatLayout):
                     text=cell_geno,
                     color=(0,1,0,1) if is_match else (1,1,1,1),
                     font_size=f"{self.unit*.2}sp",
-                    size_hint=(None,None),size=(self.unit2,self.unit2)
+                    size_hint=(None,None),size=(self.unit2*2,self.unit2)
                 )
                 grid.add_widget(lbl)
         percent = (matches/total_cells)*100
