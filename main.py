@@ -160,33 +160,51 @@ class game(FloatLayout):
         self.add_widget(self.buy_btn)
 
     def _update_ui(self,*args):
-        self.bg.size,self.bg.pos = self.size,self.pos
-        self.unit = min(self.width,self.height)/10
-
-        plot_sz = self.unit*1.1
-        padding = 25
-        start_y = (self.height-(4*plot_sz+3*padding))/1.3
-        for i,rect in enumerate(self.plot_rects):
-            rect.size = (plot_sz,plot_sz)
-            rect.pos = (50,start_y+i*(plot_sz+padding))
-
-        crush_sz = self.unit*1.8
-        self.crusher.size = (crush_sz,crush_sz)
-        self.crusher.pos = (self.width-crush_sz-30,self.height-crush_sz-30)
-
-        self.crush_rect.pos = self.crusher.pos
-        self.crush_rect.size = self.crusher.size
-        #self.crush_label.center_x = self.crusher.center_x
-        #self.crush_label.top = self.crusher.center_y-100
-
-        self.buy_btn.pos = (self.width-self.buy_btn.width-20,20)
-        self.info_label.pos = (150,10)
-        self.log_label.center_x = self.crusher.x-200
-        self.log_label.center_y = self.crusher.center_y
-
-        if hasattr(self,"table_container"):
-            self.table_container.center_x = self.log_label.center_x-60
-            self.table_container.top = self.log_label.y-60
+	    self.bg.size = self.size
+	    self.bg.pos = self.pos
+	    w = self.width
+	    h = self.height
+	    self.unit = min(w,h) * 0.08
+	    plot_sz = self.unit * 1.2
+	    spacing = self.unit * 0.3
+	    total_h = plot_sz * 4 + spacing * 3
+	    start_y = (h - total_h) * 0.55
+	    plot_x = w * 0.05
+	    for i,rect in enumerate(self.plot_rects):
+	        rect.size = (plot_sz,plot_sz)
+	        rect.pos = (
+	            plot_x,
+	            start_y + i * (plot_sz + spacing)
+	        )
+	    crush_sz = self.unit * 2
+	    self.crusher.size = (crush_sz,crush_sz)
+	    self.crusher.pos = (
+	        w - crush_sz - self.unit * 0.4,
+	        h - crush_sz - self.unit * 0.4
+	    )
+	    self.crush_rect.pos = self.crusher.pos
+	    self.crush_rect.size = self.crusher.size
+	    self.buy_btn.size = (self.unit * 2.5, self.unit * 0.9)
+	    self.buy_btn.font_size = f"{self.unit * 0.22}sp"
+	    self.buy_btn.pos = (
+	        w - self.buy_btn.width - self.unit * 0.3,
+	        self.unit * 0.3
+	    )
+	    self.info_label.text_size = (w * 0.35, None)
+	    self.info_label.font_size = f"{self.unit * 0.18}sp"
+	    self.info_label.pos = (
+	        w * 0.18,
+	        self.unit * 0.2
+	    )
+	    self.log_label.text_size = (w * 0.25, None)
+	    self.log_label.font_size = f"{self.unit * 0.18}sp"
+	    self.log_label.center_x = self.crusher.x - w * 0.15
+	    self.log_label.center_y = self.crusher.center_y
+	    
+	    if hasattr(self,"table_container"):
+	        self.table_container.scale = min(w,h) / 800
+	        self.table_container.center_x = self.log_label.center_x
+	        self.table_container.top = self.log_label.y - self.unit * 0.5
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
