@@ -131,7 +131,7 @@ class game(FloatLayout):
 
         self.log_label = Label(
             text="[b]CRUSHER OF AGONY AND DESPAIR --->[/b]\nCrush a pollinated plant\nto see genetic odds",
-            markup=True,size_hint=(None,None),size=(250,100),
+            markup=True,size_hint=(None,None),size=(400,100),
             halign="center",color=(.8,.8,.8,1)
         )
         self.add_widget(self.log_label)
@@ -190,14 +190,14 @@ class game(FloatLayout):
 	        w - self.buy_btn.width - self.unit * 0.3,
 	        self.unit * 0.3
 	    )
-	    self.info_label.text_size = (w * 0.3, None)
+	    self.info_label.text_size = (w * 0.25, None)
 	    self.info_label.font_size = f"{self.unit * 0.18}sp"
 	    self.info_label.pos = (
 	        w * 0.12,
 	        self.unit * 1.2
 	    )
 	    self.log_label.text_size = (w * 0.25, None)
-	    self.log_label.font_size = f"{self.unit * 0.1}sp"
+	    self.log_label.font_size = f"{self.unit * 0.2}sp"
 	    self.log_label.center_x = self.crusher.x - w * 0.15
 	    self.log_label.center_y = self.crusher.center_y
 	    
