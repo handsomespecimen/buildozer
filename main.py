@@ -168,7 +168,7 @@ class game(FloatLayout):
 	    plot_sz = self.unit * 1.2
 	    spacing = self.unit * 0.3
 	    total_h = plot_sz * 4 + spacing * 3
-	    start_y = (h - total_h) * 0.55
+	    start_y = self.unit * (h - total_h) * 0.55
 	    plot_x = w * 0.05
 	    for i,rect in enumerate(self.plot_rects):
 	        rect.size = (plot_sz,plot_sz)
@@ -184,7 +184,7 @@ class game(FloatLayout):
 	    )
 	    self.crush_rect.pos = self.crusher.pos
 	    self.crush_rect.size = self.crusher.size
-	    self.buy_btn.size = (self.unit * 2.5, self.unit * 0.9)
+	    self.buy_btn.size = (self.unit * 3.5, self.unit * 0.9)
 	    self.buy_btn.font_size = f"{self.unit * 0.22}sp"
 	    self.buy_btn.pos = (
 	        w - self.buy_btn.width - self.unit * 0.3,
@@ -193,18 +193,18 @@ class game(FloatLayout):
 	    self.info_label.text_size = (w * 0.35, None)
 	    self.info_label.font_size = f"{self.unit * 0.18}sp"
 	    self.info_label.pos = (
-	        w * 0.18,
-	        self.unit * 0.2
+	        w * 0.1,
+	        self.unit * 0.45
 	    )
 	    self.log_label.text_size = (w * 0.25, None)
-	    self.log_label.font_size = f"{self.unit * 0.18}sp"
+	    self.log_label.font_size = f"{self.unit * 0.1}sp"
 	    self.log_label.center_x = self.crusher.x - w * 0.15
 	    self.log_label.center_y = self.crusher.center_y
 	    
 	    if hasattr(self,"table_container"):
 	        self.table_container.scale = min(w,h) / 800
 	        self.table_container.center_x = self.log_label.center_x
-	        self.table_container.top = self.log_label.y - self.unit * 0.5
+	        self.table_container.top = self.log_label.y - self.unit * 0.8
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
