@@ -124,7 +124,7 @@ class game(FloatLayout):
 
         self.info_label = Label(
             text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)",
-            markup=True,size_hint=(None,None),size=(300,200),
+            markup=True,size_hint=(None,None),size=(200,100),
             pos=(150,10),halign="left"
 		)
         self.add_widget(self.info_label)
@@ -168,7 +168,7 @@ class game(FloatLayout):
 	    plot_sz = self.unit * 1.2
 	    spacing = self.unit * 0.3
 	    total_h = plot_sz * 4 + spacing * 4
-	    start_y = (h - total_h)
+	    start_y = (h - total_h) * .9
 	    plot_x = w * 0.05
 	    for i,rect in enumerate(self.plot_rects):
 	        rect.size = (plot_sz,plot_sz)
@@ -190,11 +190,11 @@ class game(FloatLayout):
 	        w - self.buy_btn.width - self.unit * 0.3,
 	        self.unit * 0.3
 	    )
-	    self.info_label.text_size = (w * 0.35, None)
+	    self.info_label.text_size = (w * 0.3, None)
 	    self.info_label.font_size = f"{self.unit * 0.18}sp"
 	    self.info_label.pos = (
-	        w * 0.25,
-	        self.unit * .9
+	        w * 0.12,
+	        self.unit * 1.2
 	    )
 	    self.log_label.text_size = (w * 0.25, None)
 	    self.log_label.font_size = f"{self.unit * 0.1}sp"
