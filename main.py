@@ -10,6 +10,7 @@ from kivy.graphics import Color,Ellipse,Rectangle,InstructionGroup,Line
 from kivy.clock import Clock
 from kivy.vector import Vector
 from kivy.core.window import Window
+from kivy.uix.scatter import Scatter
 
 def crossover(p1,p2):
     return "".join(sorted(random.choice(p1)+random.choice(p2)))
@@ -122,24 +123,25 @@ class game(FloatLayout):
         super().__init__(**kwargs)
 
         self.info_label = Label(
-            text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)",
-            markup=True,size_hint=(None,None),size=(100,100),
-            pos=(150,10),halign="left"
+            text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)\n\n",
+            markup=True,
+            size_hint=(None,None),
+            halign="left"
         )
+        self.info_label.bind(texture_size=self.info_label.setter('size'))
         self.add_widget(self.info_label)
-
         self.log_label = Label(
             text="[b]CRUSHER OF AGONY AND DESPAIR --->[/b]\nCrush a pollinated plant\nto see genetic odds",
-            markup=True,size_hint=(None,None),size=(400,100),
-            halign="center",color=(.8,.8,.8,1)
+            markup=True,
+            size_hint=(None,None),
+            halign="center"
         )
+        self.log_label.bind(texture_size=self.log_label.setter('size'))
         self.add_widget(self.log_label)
 
         self.plot_rects = []
         self.plot_occupants = [None]*8
-
         self.bind(size=self._update_ui,pos=self._update_ui)
-
         with self.canvas.before:
             Color(0,.2,0,1)
             self.bg = Rectangle(size=self.size,pos=self.pos)
@@ -161,8 +163,7 @@ class game(FloatLayout):
     def _update_ui(self,*args):
         self.bg.size = self.size
         self.bg.pos = self.pos
-        w = self.width
-        h = self.height
+        w,h = self.width,self.height
         self.unit = min(w,h)*.08
         plot_sz = self.unit*1.2
         spacing = self.unit*.5
@@ -173,27 +174,33 @@ class game(FloatLayout):
         for i,rect in enumerate(self.plot_rects):
             row_x = plot_x if i < 4 else plot_x2
             rect.size = (plot_sz,plot_sz)
-            rect.pos = (row_x,start_y+i%4*(plot_sz+spacing))
+            rect.pos = (row_x,start_y+i % 4*(plot_sz+spacing))
+
         crush_sz = self.unit*2
         self.crusher.size = (crush_sz,crush_sz)
         self.crusher.pos = (w-crush_sz-self.unit*.4,h-crush_sz-self.unit*.4)
         self.crush_rect.pos = self.crusher.pos
         self.crush_rect.size = self.crusher.size
+
         self.buy_btn.size = (self.unit*3.5,self.unit*.9)
         self.buy_btn.font_size = f"{self.unit*.22}sp"
         self.buy_btn.pos = (w-self.buy_btn.width-self.unit*.3,self.unit*.3)
-        self.info_label.text_size = (w*.5,None)
-        self.info_label.font_size = f"{self.unit*.1}sp"
-        self.info_label.pos = (w*.167,self.unit*1)
-        self.log_label.text_size = (w*.25,None)
-        self.log_label.font_size = f"{self.unit*.2}sp"
-        self.log_label.center_x = self.crusher.x-w*.15
-        self.log_label.center_y = self.crusher.center_y
+        self.info_label.text_size = (None,None)
+        self.info_label.font_size = max(12,self.unit*.25)
+        self.info_label.texture_update()
+        self.info_label.x = w*.02
+        self.info_label.y = self.unit*.2
+        self.log_label.text_size = (None,None)
+        self.log_label.font_size = max(14,self.unit*.3)
+        self.log_label.texture_update()
+        self.log_label.right = self.crusher.x-(self.unit*.5)
+        self.log_label.top = self.crusher.top
 
         if hasattr(self,"table_container"):
-            self.table_container.scale = min(w,h)/800
-            self.table_container.center_x = self.log_label.center_x+self.unit*.13
-            self.table_container.top = self.log_label.y-self.unit*.8
+            self.table_container.scale = max(.4,min(w,h)/900)
+            scaled_width = self.table_container.width*self.table_container.scale
+            self.table_container.right = self.log_label.x-scaled_width*2.5
+            self.table_container.top = self.log_label.top-self.unit*.8
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
@@ -264,18 +271,26 @@ class game(FloatLayout):
                 lbl = Label(
                     text=cell_geno,
                     color=(0,1,0,1) if is_match else (1,1,1,1),
-                    font_size=f"{self.unit*.2}sp",
+                    #font_size=f"{self.unit*.4}sp",
                     size_hint=(None,None),size=(self.unit2*2,self.unit2)
                 )
                 grid.add_widget(lbl)
         percent = (matches/total_cells)*100
         self.log_label.text = f"{t1}+{t2}\n[b]Result: {result_geno}[/b]\nChance: {percent:.1f}%"
+
         if hasattr(self,"table_container"):
             self.remove_widget(self.table_container)
-        self.table_container = grid
-        self.table_container.center_x = self.log_label.center_x-60
-        self.table_container.top = self.log_label.y-60
+
+        self.table_container = Scatter(
+            size_hint=(None,None),
+            do_rotation=False,
+            do_translation=False,
+            do_scale=False,
+            size=grid.size
+        )
+        self.table_container.add_widget(grid)
         self.add_widget(self.table_container)
+        self._update_ui()
 
     def breed_new_seed(self,m1,m2):
         new_c = crossover(m1.color_genes,m2.color_genes)
