@@ -11,6 +11,7 @@ from kivy.clock import Clock
 from kivy.vector import Vector
 from kivy.core.window import Window
 from kivy.uix.scatter import Scatter
+from kivy.animation import Animation
 
 GROWTH = 2
 
@@ -177,7 +178,7 @@ class game(FloatLayout):
         for i,rect in enumerate(self.plot_rects):
             row_x = plot_x if i < 4 else plot_x2
             rect.size = (plot_sz,plot_sz)
-            rect.pos = (row_x,start_y+i % 4*(plot_sz+spacing))
+            rect.pos = (row_x,start_y+i%4*(plot_sz+spacing))
 
         crush_sz = self.unit*2
         self.crusher.size = (crush_sz,crush_sz)
@@ -200,10 +201,7 @@ class game(FloatLayout):
         self.log_label.top = self.crusher.top
 
         if hasattr(self,"table_container"):
-            self.table_container.scale = self.precision_unit*0.45
-            scaled_width = self.table_container.width*self.table_container.scale
-            self.table_container.right = self.log_label.x-scaled_width*3.5
-            self.table_container.top = self.log_label.top-self.precision_unit*20
+            self.table_container.center = (w/2,h/2)
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
@@ -269,31 +267,30 @@ class game(FloatLayout):
                 h = "".join(sorted(row_gamete[1]+col_gamete[1]))
                 cell_geno = c+h
                 is_match = (cell_geno == result_geno)
-                if is_match:
-                    matches += 1
-                lbl = Label(
-                    text=cell_geno,
-                    color=(0,1,0,1) if is_match else (1,1,1,1),
-                    #font_size=f"{self.unit*.4}sp",
-                    size_hint=(None,None),size=(self.unit2*2,self.unit2)
-                )
+                if is_match: matches += 1
+                lbl = Label(text=cell_geno,color=(0,1,0,1) if is_match else (1,1,1,1),size_hint=(None,None),size=(self.unit2*2,self.unit2))
                 grid.add_widget(lbl)
         percent = (matches/total_cells)*100
         self.log_label.text = f"{t1}+{t2}\n[b]Result: {result_geno}[/b]\nChance: {percent:.1f}%"
 
         if hasattr(self,"table_container"):
+            Animation.stop_all(self.table_container)
             self.remove_widget(self.table_container)
 
-        self.table_container = Scatter(
-            size_hint=(None,None),
-            do_rotation=False,
-            do_translation=False,
-            do_scale=False,
-            size=grid.size
-        )
+        self.table_container = Scatter(size_hint=(None,None),do_rotation=False,do_translation=False,do_scale=False,opacity=1)
         self.table_container.add_widget(grid)
-        self.add_widget(self.table_container)
-        self._update_ui()
+        self.add_widget(self.table_container,index=len(self.children))
+
+        def finalize_table(dt):
+            self.table_container.size = grid.size
+            self.table_container.center = (self.width/2,self.height/2)
+        Clock.schedule_once(finalize_table)
+
+        def start_fade(dt):
+            anim = Animation(opacity=0,duration=2)
+            anim.bind(on_complete=lambda *x: self.remove_widget(self.table_container) if hasattr(self,"table_container") else None)
+            anim.start(self.table_container)
+        Clock.schedule_once(start_fade,5)
 
     def breed_new_seed(self,m1,m2):
         new_c = crossover(m1.color_genes,m2.color_genes)
