@@ -12,6 +12,8 @@ from kivy.vector import Vector
 from kivy.core.window import Window
 from kivy.uix.scatter import Scatter
 
+GROWTH = 100
+
 def crossover(p1,p2):
     return "".join(sorted(random.choice(p1)+random.choice(p2)))
 
@@ -34,7 +36,7 @@ class plantmodel:
 
     def update(self,dt):
         if self.is_planted and self.age < 30:
-            self.age += dt*2
+            self.age += dt*GROWTH
             if self.age >= 30:
                 self.harvestable = True
 
@@ -164,7 +166,8 @@ class game(FloatLayout):
         self.bg.size = self.size
         self.bg.pos = self.pos
         w,h = self.width,self.height
-        self.unit = min(w,h)*.08
+        self.unit = h*.08
+        self.precision_unit = w/h
         plot_sz = self.unit*1.2
         spacing = self.unit*.5
         total_h = plot_sz*4+spacing*4
@@ -197,10 +200,10 @@ class game(FloatLayout):
         self.log_label.top = self.crusher.top
 
         if hasattr(self,"table_container"):
-            self.table_container.scale = max(.1,self.unit*0.015)
+            self.table_container.scale = self.precision_unit*0.45
             scaled_width = self.table_container.width*self.table_container.scale
-            self.table_container.right = self.log_label.x-scaled_width*2.5
-            self.table_container.top = self.log_label.top-self.unit*.8
+            self.table_container.right = self.log_label.x-scaled_width*3.5
+            self.table_container.top = self.log_label.top-self.precision_unit*20
 
     def spawn_initial(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
