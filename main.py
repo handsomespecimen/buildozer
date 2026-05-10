@@ -197,7 +197,7 @@ class game(FloatLayout):
         self.log_label.top = self.crusher.top
 
         if hasattr(self,"table_container"):
-            self.table_container.scale = max(.4,min(w,h)/900)
+            self.table_container.scale = max(.1,self.unit*0.015)
             scaled_width = self.table_container.width*self.table_container.scale
             self.table_container.right = self.log_label.x-scaled_width*2.5
             self.table_container.top = self.log_label.top-self.unit*.8
