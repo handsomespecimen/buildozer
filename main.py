@@ -12,7 +12,7 @@ from kivy.vector import Vector
 from kivy.core.window import Window
 from kivy.uix.scatter import Scatter
 
-GROWTH = 100
+GROWTH = 2
 
 def crossover(p1,p2):
     return "".join(sorted(random.choice(p1)+random.choice(p2)))
