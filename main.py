@@ -6,37 +6,50 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
-from kivy.graphics import Color,Ellipse,Rectangle,InstructionGroup,Line
+from kivy.graphics import Color,Ellipse,Rectangle,InstructionGroup,Line,RoundedRectangle
 from kivy.clock import Clock
-from kivy.vector import Vector
 from kivy.core.window import Window
 from kivy.uix.scatter import Scatter
 from kivy.animation import Animation
+import uuid
+import networkx as nx
 
 GROWTH = 2
+
+RCOLORS = [
+    {'rgba': (.2,.8,.2,1),'hex': '33CC33'},
+    {'rgba': (1,.6,0,1),'hex': 'FF9900'},
+    {'rgba': (.8,.2,.8,1),'hex': 'CC33CC'},
+    {'rgba': (.2,.6,1,1),'hex': '3399FF'}
+]
 
 def crossover(p1,p2):
     return "".join(sorted(random.choice(p1)+random.choice(p2)))
 
 class plantmodel:
-    def __init__(self,color_genes="Rr",height_genes="Tt"):
-        self.color_genes = "".join(sorted(color_genes))
-        self.height_genes = "".join(sorted(height_genes))
+    counter = 0
+    def __init__(self,colorgenes="Rr",heightgenes="Tt",parents=None,test=None):
+        self.id = str(uuid.uuid4())[:8]
+        self.parents = parents
+        self.test = test
+
+        self.colorgenes = "".join(sorted(colorgenes))
+        self.heightgenes = "".join(sorted(heightgenes))
         self.age = 0
-        self.is_planted = False
+        self.planted = False
         self.harvestable = False
-        self.pollinated_by = None
+        self.pollinator = None
 
     @property
-    def phenotype_color(self):
-        return (.9,.1,.1,1) if "R" in self.color_genes else (1,1,1,1)
+    def phenocolor(self):
+        return (.9,.1,.1,1) if "R" in self.colorgenes else (1,1,1,1)
 
     @property
-    def phenotype_height(self):
-        return 1.4 if "T" in self.height_genes else .8
+    def phenoheight(self):
+        return 1.4 if "T" in self.heightgenes else .8
 
     def update(self,dt):
-        if self.is_planted and self.age < 30:
+        if self.planted and self.age < 30:
             self.age += dt*GROWTH
             if self.age >= 30:
                 self.harvestable = True
@@ -48,63 +61,58 @@ class plantwidget(Widget):
         self.size = (80,80)
         self.size_hint = (None,None)
 
-        self.gene_label = Label(text=f"{self.model.color_genes}\n{self.model.height_genes}",color=(1,1,1,.7),font_size="10sp",bold=True,halign="center")
-        self.add_widget(self.gene_label)
+        self.genelabel = Label(text=f"{self.model.colorgenes}\n{self.model.heightgenes}",color=(1,1,1,.7),font_size="10sp",halign="center",markup=True)
+        self.add_widget(self.genelabel,index=967)
 
-        self.canvas_group = InstructionGroup()
-        self.canvas.add(self.canvas_group)
-        Clock.schedule_interval(self.update_view,1/30)
+        self.canvasthing = InstructionGroup()
+        self.canvas.add(self.canvasthing)
+        Clock.schedule_interval(self.update,1/30)
 
-    def update_view(self,dt):
+    def update(self,dt):
         self.model.update(dt)
-        self.canvas_group.clear()
-        self.gene_label.center_x,self.gene_label.y = self.center_x,self.y-25
-        genes = f"{self.model.color_genes} {self.model.height_genes}"
-        if self.model.pollinated_by:
-            p = self.model.pollinated_by
-            self.gene_label.text = f"plant: {genes}\npollen: {p.color_genes} {p.height_genes}"
+        self.canvasthing.clear()
+        self.genelabel.center_x,self.genelabel.y = self.center_x,self.y-40
+        genes = f"[b]{self.model.colorgenes} {self.model.heightgenes}[/b]"
+        if self.model.pollinator:
+            p = self.model.pollinator
+            self.genelabel.text = f"plant: {genes}\npollen: [b]{p.colorgenes} {p.heightgenes}[/b]\n{self.model.id}"
         else:
-            self.gene_label.text = genes
+            self.genelabel.text = f"{genes}\n{self.model.id}\n"
 
         cx = self.x+self.width/2
         cy = self.y+self.height/2
-        h_mult = self.model.phenotype_height
-
         if self.model.age < 10:
-            self.canvas_group.add(Color(.4,.25,.1,1))
-            self.canvas_group.add(Ellipse(pos=(cx-8,cy-5),size=(16,10)))
-
+            self.canvasthing.add(Color(.4,.25,.1,1))
+            self.canvasthing.add(Ellipse(pos=(cx-8,cy-5),size=(16,10)))
         elif self.model.age < 20:
-            self.canvas_group.add(Color(.2,.7,.2,1))
-            self.canvas_group.add(Line(points=[cx,cy-10,cx,cy+20],width=2))
-            self.canvas_group.add(Ellipse(pos=(cx-14,cy+5),size=(14,7)))
-            self.canvas_group.add(Ellipse(pos=(cx,cy+8),size=(14,7)))
-
+            self.canvasthing.add(Color(.2,.7,.2,1))
+            self.canvasthing.add(Line(points=[cx,cy-10,cx,cy+20],width=2))
+            self.canvasthing.add(Ellipse(pos=(cx-14,cy+5),size=(14,7)))
+            self.canvasthing.add(Ellipse(pos=(cx,cy+8),size=(14,7)))
         else:
-            h = 50*h_mult
-            self.canvas_group.add(Color(.1,.4,.1,1))
-            self.canvas_group.add(Rectangle(pos=(cx-2,cy-10),size=(4,h)))
-            self.canvas_group.add(Color(.1,.6,.1,1))
-            self.canvas_group.add(Ellipse(pos=(cx-25,cy+10),size=(25,12)))
-            self.canvas_group.add(Ellipse(pos=(cx+2,cy+20),size=(25,12)))
-
+            h = 50*self.model.phenoheight
+            self.canvasthing.add(Color(.1,.4,.1,1))
+            self.canvasthing.add(Rectangle(pos=(cx-2,cy-10),size=(4,h)))
+            self.canvasthing.add(Color(.1,.6,.1,1))
+            self.canvasthing.add(Ellipse(pos=(cx-25,cy+10),size=(25,12)))
+            self.canvasthing.add(Ellipse(pos=(cx+2,cy+20),size=(25,12)))
             if self.model.age >= 30:
-                if self.model.pollinated_by:
-                    self.canvas_group.add(Color(1,.9,0,.2))
-                    self.canvas_group.add(Ellipse(pos=(cx-30,cy+h-25),size=(60,60)))
-                self.canvas_group.add(Color(*self.model.phenotype_color))
-                for a in range(0,360,72):
-                    rad = math.radians(a)
-                    self.canvas_group.add(Ellipse(pos=(cx+18*math.cos(rad)-11,cy+h+18*math.sin(rad)-11),size=(22,22)))
-                self.canvas_group.add(Ellipse(pos=(cx-11,cy+h-11),size=(22,22)))
-                self.canvas_group.add(Color(.9,.8,0,1))
-                self.canvas_group.add(Ellipse(pos=(cx-9,cy+h-9),size=(18,18)))
+                if self.model.pollinator:
+                    self.canvasthing.add(Color(1,.9,0,.2))
+                    self.canvasthing.add(Ellipse(pos=(cx-30,cy+h-25),size=(60,60)))
+                self.canvasthing.add(Color(*self.model.phenocolor))
+                for i in range(0,360,72):
+                    rad = math.radians(i)
+                    self.canvasthing.add(Ellipse(pos=(cx+18*math.cos(rad)-11,cy+h+18*math.sin(rad)-11),size=(22,22)))
+                self.canvasthing.add(Ellipse(pos=(cx-11,cy+h-11),size=(22,22)))
+                self.canvasthing.add(Color(.9,.8,0,1))
+                self.canvasthing.add(Ellipse(pos=(cx-9,cy+h-9),size=(18,18)))
 
     def on_touch_down(self,touch):
         if self.collide_point(*touch.pos):
-            if not self.model.is_planted or self.model.harvestable:
-                self.parent.free_plot_by_plant(self)
-                self.model.is_planted = False
+            if not self.model.planted or self.model.harvestable:
+                self.parent.freeplot(self)
+                self.model.planted = False
                 touch.grab(self)
                 return True
         return super().on_touch_down(touch)
@@ -117,189 +125,402 @@ class plantwidget(Widget):
     def on_touch_up(self,touch):
         if touch.grab_current is self:
             touch.ungrab(self)
-            self.parent.handle_drop(self)
+            self.parent.handledrop(self)
             return True
         return super().on_touch_up(touch)
+
+class tnode(Widget):
+    def __init__(self,model,**kwargs):
+        super().__init__(**kwargs)
+        self.size = (110,60)
+        self.size_hint = (None,None)
+        self.model = model
+        with self.canvas.before:
+            Color(.12,.12,.12,1)
+            RoundedRectangle(pos=self.pos,size=self.size,radius=[4])
+            Color(.3,.3,.3,1)
+            Line(rounded_rectangle=(self.x,self.y,self.width,self.height,4),width=1.5)
+            Color(*model.phenocolor)
+            if model.phenoheight == 1.4:
+                Ellipse(pos=(self.x+8,self.y+self.height-16),size=(8,8))
+            else:
+                Rectangle(pos=(self.x+8,self.y+self.height-16),size=(8,8))
+
+        genes = f"[b]{model.colorgenes}[/b] | {model.heightgenes}\n[size=10sp]ID: {model.id}[/size]"
+        self.label = Label(text=genes,markup=True,pos=self.pos,size=self.size,halign="center",valign="middle",font_size="13sp")
+        self.label.bind(size=self.label.setter('text_size'))
+        self.add_widget(self.label)
+        self.bind(pos=self.update,size=self.update)
+
+    def update(self,*args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            Color(.15,.15,.15,1)
+            RoundedRectangle(pos=self.pos,size=self.size,radius=[4])
+            Color(.4,.4,.4,1)
+            Line(rounded_rectangle=(self.x,self.y,self.width,self.height,4),width=1.2)
+            Color(*self.model.phenocolor)
+            Rectangle(pos=(self.x+8,self.y+self.height-16),size=(8,8))
+        self.label.pos = self.pos
+
+class treeclass(FloatLayout):
+    def __init__(self,history,**kwargs):
+        super().__init__(**kwargs)
+        self.history = history
+        self.testidx = 0
+        self.npos = {}
+
+        self.scatter = Scatter(do_rotation=False,do_scale=True,auto_bring_to_front=False,size_hint=(None,None),size=(40000,40000))
+        with self.scatter.canvas.before:
+            Color(.05,.1,.05,.95)
+            Rectangle(pos=(0,0),size=(40000,40000))
+        self.add_widget(self.scatter)
+
+        self.layout = GridLayout(rows=1,size_hint=(None,None),height=50,spacing=10)
+        self.add_widget(self.layout)
+
+        self.bind(size=self.update)
+        self.refresh()
+
+    def update(self,*args):
+        self.layout.top = self.height-20
+        self.layout.x = 20
+        self.scatter.pos = (self.width/2-20000,self.height/2-20000)
+
+    def switch(self,index):
+        self.testidx = index
+        self.refresh()
+
+    def refresh(self):
+        self.scatter.clear_widgets()
+        self.scatter.canvas.clear()
+        self.layout.clear_widgets()
+        with self.scatter.canvas.before:
+            Color(.05,.1,.05,.95)
+            Rectangle(pos=(0,0),size=(40000,40000))
+
+        if not self.history:
+            return
+        tests = sorted(list(set(i.test for i in self.history.values() if i.test is not None)))
+        if not tests:
+            self.scatter.add_widget(Label(text="crush some plants to start a test",center=(20000,20000),font_size="20sp"))
+            return
+        self.testidx = min(self.testidx,len(tests)-1)
+        test = tests[self.testidx]
+
+        for i,v in enumerate(tests):
+            btn = Button(text=f"test {v}",size_hint_x=None,width=120,background_color=(.2,.8,.2,1) if i == self.testidx else (.5,.5,.5,1),bold=True)
+            btn.bind(on_release=lambda instance,idx=i: self.switch(idx))
+            self.layout.add_widget(btn)
+
+        filtered = set()
+        for id,model in self.history.items():
+            if model.test == test:
+                filtered.add(id)
+                if model.parents:
+                    filtered.add(model.parents[0])
+                    filtered.add(model.parents[1])
+
+        # glad there was an example of this online otherwise i dont know how the fuck i wouldve managed
+        G = nx.DiGraph()
+        for id in filtered:
+            G.add_node(id)
+            model = self.history.get(id)
+            if model and model.parents:
+                for parentid in model.parents:
+                    if parentid in filtered:
+                        G.add_edge(parentid,id)
+        depths = {node: 0 for node in G.nodes()}
+        for node in nx.topological_sort(G):
+            parents = list(G.predecessors(node))
+            if parents:
+                depths[node] = 1+max(depths[p] for p in parents)
+
+        XSTEP = 160
+        YSTEP = 160
+        ROOTX = 20000
+        ROOTY = 20000
+
+        levels = {}
+        for id in filtered:
+            d = depths.get(id,0)
+            levels.setdefault(d,[]).append(id)
+        self.npos = {}
+
+        for d in sorted(levels.keys()):
+            ids = levels[d]
+            groups = {}
+            for id in ids:
+                model = self.history[id]
+                groups.setdefault(tuple(sorted(model.parents)) if model.parents else ("root",id),[]).append(id)
+
+            ideals = {}
+            for p,members in groups.items():
+                if p[0] == "root":
+                    ideals[p] = ROOTX
+                else:
+                    p1,p2 = p
+                    if p1 in self.npos and p2 in self.npos:
+                        ideals[p] = (self.npos[p1][0]+self.npos[p2][0])/2
+                    else:
+                        ideals[p] = ROOTX
+
+            currentx = 0
+            offsets = {}
+            for idx,p in enumerate(sorted(groups.keys(),key=lambda k: ideals[k])):
+                members = groups[p]
+                if idx > 0:
+                    currentx += XSTEP*.6
+                for member in members:
+                    offsets[member] = currentx
+                    currentx += XSTEP
+
+            if offsets:
+                totalwidth = currentx-XSTEP
+                startx = ROOTX-(totalwidth/2)
+                for id,offset in offsets.items():
+                    y = ROOTY-(d*YSTEP)
+                    x = startx+offset
+                    node = tnode(self.history[id],pos=(x,y))
+                    self.npos[id] = (x+55,y)
+                    self.scatter.add_widget(node)
+
+        # this is a miracle that was bestowed to me by god himself (real) (it took SO LONG)
+        with self.scatter.canvas.before:
+            Color(.7,.7,.7,1)
+            for id in filtered:
+                model = self.history.get(id)
+                if model and model.parents:
+                    p1,p2 = model.parents
+                    if p1 in self.npos and p2 in self.npos and id in self.npos:
+                        p1x,p1y = self.npos[p1]
+                        p2x,p2y = self.npos[p2]
+                        cx,cy = self.npos[id]
+                        topedge = cy+60
+                        marriagey = min(p1y,p2y)-35
+                        Line(points=[p1x,p1y,p1x,marriagey],width=1.5)
+                        Line(points=[p2x,p2y,p2x,marriagey],width=1.5)
+                        Line(points=[p1x,marriagey,p2x,marriagey],width=1.5)
+                        marriagex = (p1x+p2x)/2
+                        splity = (marriagey+topedge)/2
+                        Line(points=[marriagex,marriagey,marriagex,splity,cx,splity,cx,topedge],width=1.5)
 
 class game(FloatLayout):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
+        self.history = {}
+        w,h = self.width,self.height
+        self.unit = h*.08
 
-        self.info_label = Label(
-            text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)\n\n",
-            markup=True,
-            size_hint=(None,None),
-            halign="left"
-        )
-        self.info_label.bind(texture_size=self.info_label.setter('size'))
-        self.add_widget(self.info_label)
-        self.log_label = Label(
-            text="[b]CRUSHER OF AGONY AND DESPAIR --->[/b]\nCrush a pollinated plant\nto see genetic odds",
-            markup=True,
-            size_hint=(None,None),
-            halign="center"
-        )
-        self.log_label.bind(texture_size=self.log_label.setter('size'))
-        self.add_widget(self.log_label)
+        self.infolabel = Label(text="[b]GUIDE:[/b]\nR = red  |  r = white\nT = tall  |  t = short\n\n[b]INSTRUCTIONS:[/b]\n1. Drag seeds to brown plots\n2. Wait for them to grow into flowers\n3. Touch flowers together to pollinate\n4. Drag pollinated plant to the nefarious [b]CRUSHER OF AGONY AND DESPAIR[/b] (right there)\n\n",markup=True,size_hint=(None,None),halign="left")
+        self.infolabel.bind(texture_size=self.infolabel.setter('size'))
 
-        self.plot_rects = []
-        self.plot_occupants = [None]*8
-        self.bind(size=self._update_ui,pos=self._update_ui)
+        self.loglabel = Label(text="\n\n[b]CRUSHER OF AGONY AND DESPAIR --->[/b]\nCrush a pollinated plant\nto see genetic odds",markup=True,size_hint=(None,None),halign="right")
+        self.loglabel.bind(texture_size=self.loglabel.setter('size'))
+
+        self.plots = []
+        self.plotoccupants = [None]*8
+        self.bind(size=self.update,pos=self.update)
         with self.canvas.before:
             Color(0,.2,0,1)
             self.bg = Rectangle(size=self.size,pos=self.pos)
             Color(.4,.3,.2,1)
             for i in range(8):
                 r = Rectangle()
-                self.plot_rects.append(r)
+                self.plots.append(r)
         self.crusher = Widget(size_hint=(None,None))
         with self.crusher.canvas:
             Color(.5,.2,.2,1)
-            self.crush_rect = Rectangle()
+            self.crush = Rectangle()
         self.add_widget(self.crusher)
-        #self.crush_label = Label(text="SEED\nCRUSHER",bold=True,halign="center",font_size="12sp")
-        #self.add_widget(self.crush_label)
-        self.buy_btn = Button(text="SPAWN SEED",size_hint=(None,None),size=(140,50),background_color=(0,.6,1,1),bold=True)
-        self.buy_btn.bind(on_release=self.spawn_initial)
-        self.add_widget(self.buy_btn)
+        self.buybtn = Button(text="SPAWN SEED",size_hint=(None,None),size=(140,50),background_color=(0,.6,1,1),bold=True)
+        self.buybtn.bind(on_release=self.spawn)
+        self.treeview = None
+        self.treebtn = Button(text="VIEW GENE TREE",size_hint=(None,None),size=(140,50),pos=(20,Window.height-70))
+        self.treebtn.bind(on_release=self.treetoggle)
 
-    def _update_ui(self,*args):
+        self.add_widget(self.buybtn)
+        self.add_widget(self.infolabel)
+        self.add_widget(self.loglabel)
+        self.add_widget(self.treebtn,index=0)
+
+    def treetoggle(self,*args):
+        if self.treeview:
+            self.remove_widget(self.treeview)
+            self.treeview = None
+            self.treebtn.text = "VIEW GENE TREE"
+        else:
+            self.treeview = treeclass(self.history,size_hint=(1,1),pos=(0,0))
+            self.add_widget(self.treeview,index=1)
+            self.treebtn.text = "CLOSE TREE"
+
+    def update(self,*args):
         self.bg.size = self.size
         self.bg.pos = self.pos
         w,h = self.width,self.height
         self.unit = h*.08
-        self.precision_unit = w/h
-        plot_sz = self.unit*1.2
+        plotsize = self.unit*1.2
         spacing = self.unit*.5
-        total_h = plot_sz*4+spacing*4
-        start_y = (h-total_h)*.9
-        plot_x = w*.05
-        plot_x2 = plot_x+plot_sz+spacing
-        for i,rect in enumerate(self.plot_rects):
-            row_x = plot_x if i < 4 else plot_x2
-            rect.size = (plot_sz,plot_sz)
-            rect.pos = (row_x,start_y+i%4*(plot_sz+spacing))
+        y = (h-(plotsize*4+spacing*4))*.9
+        plotx = w*.05
+        plotx2 = plotx+plotsize+spacing
+        for i,rect in enumerate(self.plots):
+            rowx = plotx if i < 4 else plotx2
+            rect.size = (plotsize,plotsize)
+            rect.pos = (rowx,y+i%4*(plotsize+spacing))
 
-        crush_sz = self.unit*2
-        self.crusher.size = (crush_sz,crush_sz)
-        self.crusher.pos = (w-crush_sz-self.unit*.4,h-crush_sz-self.unit*.4)
-        self.crush_rect.pos = self.crusher.pos
-        self.crush_rect.size = self.crusher.size
+        crushsize = self.unit*2
+        self.crusher.size = (crushsize,crushsize)
+        self.crusher.pos = (w-crushsize-self.unit*.4,h-crushsize-self.unit*.4)
+        self.crush.pos = self.crusher.pos
+        self.crush.size = self.crusher.size
 
-        self.buy_btn.size = (self.unit*3.5,self.unit*.9)
-        self.buy_btn.font_size = f"{self.unit*.22}sp"
-        self.buy_btn.pos = (w-self.buy_btn.width-self.unit*.3,self.unit*.3)
-        self.info_label.text_size = (None,None)
-        self.info_label.font_size = max(12,self.unit*.25)
-        self.info_label.texture_update()
-        self.info_label.x = w*.02
-        self.info_label.y = self.unit*.2
-        self.log_label.text_size = (None,None)
-        self.log_label.font_size = max(14,self.unit*.3)
-        self.log_label.texture_update()
-        self.log_label.right = self.crusher.x-(self.unit*.5)
-        self.log_label.top = self.crusher.top
+        self.buybtn.size = (self.unit*3.5,self.unit*.9)
+        self.buybtn.font_size = f"{self.unit*.22}sp"
+        self.buybtn.pos = (w-self.buybtn.width-self.unit*.3,self.unit*.3)
+        self.treebtn.size = (self.unit*3.5,self.unit*.9)
+        self.treebtn.font_size = f"{self.unit*.22}sp"
+        self.treebtn.pos = (w-self.buybtn.width-self.unit*.3,self.unit*1.3)
+        self.infolabel.text_size = (None,None)
+        self.infolabel.font_size = max(12,self.unit*.25)
+        self.infolabel.texture_update()
+        self.infolabel.x = w*.02
+        self.infolabel.y = self.unit*.2
+        self.loglabel.text_size = (None,None)
+        self.loglabel.font_size = max(14,self.unit*.28)
+        self.loglabel.texture_update()
+        self.loglabel.right = self.crusher.x-(self.unit*.5)
+        self.loglabel.top = self.crusher.top+(self.unit*.5)
 
-        if hasattr(self,"table_container"):
-            self.table_container.center = (w/2,h/2)
+        if hasattr(self,"table"):
+            self.table.center = (w/2,h/2)
 
-    def spawn_initial(self,*args):
+    def spawn(self,*args):
         c,h = random.choice(["RR","Rr","rr"]),random.choice(["TT","Tt","tt"])
-        pw = plantwidget(plantmodel(c,h))
+        model = plantmodel(c,h,parents=None)
+        self.history[model.id] = model
+        pw = plantwidget(model)
         pw.center = (self.width*.7+random.randint(1,50),100+random.randint(1,50))
-        self.add_widget(pw)
+        self.add_widget(pw,index=2)
 
-    def free_plot_by_plant(self,plant):
-        for i,occupant in enumerate(self.plot_occupants):
+    def freeplot(self,plant):
+        for i,occupant in enumerate(self.plotoccupants):
             if occupant == plant:
-                self.plot_occupants[i] = None
+                self.plotoccupants[i] = None
 
-    def handle_drop(self,plant):
+    def handledrop(self,plant):
         if self.crusher.collide_widget(plant):
-            if plant.model.pollinated_by:
-                self.breed_new_seed(plant.model,plant.model.pollinated_by)
-                self.remove_widget(plant)
+            if plant.model.pollinator:
+                self.breed(plant.model,plant.model.pollinator)
+            self.remove_widget(plant)
             return
         if plant.model.harvestable:
-            for child in self.children:
-                if isinstance(child,plantwidget) and child != plant and child.model.harvestable:
-                    if plant.collide_widget(child):
-                        plant.model.pollinated_by = child.model
-                        child.model.pollinated_by = plant.model
-                        plant.update_view(0)
-                        child.update_view(0)
+            for i in self.children:
+                if isinstance(i,plantwidget) and i != plant and i.model.harvestable:
+                    if plant.collide_widget(i):
+                        plant.model.pollinator = i.model
+                        i.model.pollinator = plant.model
+                        plant.update(0)
+                        i.update(0)
                         return
 
-        for i,rect in enumerate(self.plot_rects):
-            rx,ry = rect.pos
-            rw,rh = rect.size
+        for i,v in enumerate(self.plots):
+            rx,ry = v.pos
+            rw,rh = v.size
             px,py = plant.center
             if rx <= px <= rx+rw and ry <= py <= ry+rh:
-                if self.plot_occupants[i] is None and not plant.model.harvestable:
+                if self.plotoccupants[i] is None and not plant.model.harvestable:
                     plant.center = (rx+rw/2,ry+rh/2)
-                    plant.model.is_planted = True
-                    self.plot_occupants[i] = plant
+                    plant.model.planted = True
+                    self.plotoccupants[i] = plant
                     return
 
-    def get_gametes(self,model):
+    def getgametes(self,model):
         gametes = []
-        for c in model.color_genes:
-            for h in model.height_genes:
+        for c in model.colorgenes:
+            for h in model.heightgenes:
                 gametes.append(c+h)
-        return gametes,model.color_genes+model.height_genes
+        return gametes,model.colorgenes+model.heightgenes
 
-    def update_punnett_table(self,m1,m2,result_geno):
-        self.log_label.text = ""
+    def tableupdate(self,m1,m2,genotypes):
         self.unit2 = self.unit/2
         grid = GridLayout(cols=5,spacing=self.unit/10,size_hint=(None,None))
         grid.bind(minimum_size=grid.setter("size"))
-        g1,t1 = self.get_gametes(m1)
-        g2,t2 = self.get_gametes(m2)
+
+        g1,t1 = self.getgametes(m1)
+        g2,t2 = self.getgametes(m2)
+        colormap = {}
+        for i,geno in enumerate(genotypes):
+            colormap[geno] = RCOLORS[i%len(RCOLORS)]
         grid.add_widget(Label(text="",size_hint_y=None,height=self.unit2))
         for gamete in g2:
-            grid.add_widget(Label(text=gamete,bold=True,color=(0,.8,1,1),size_hint_y=None,height=self.unit2))
-        total_cells = 16
-        matches = 0
-        for row_gamete in g1:
-            grid.add_widget(Label(text=row_gamete,bold=True,color=(0,.8,1,1),size_hint_x=None,width=self.unit2*2))
-            for col_gamete in g2:
-                c = "".join(sorted(row_gamete[0]+col_gamete[0]))
-                h = "".join(sorted(row_gamete[1]+col_gamete[1]))
-                cell_geno = c+h
-                is_match = (cell_geno == result_geno)
-                if is_match: matches += 1
-                lbl = Label(text=cell_geno,color=(0,1,0,1) if is_match else (1,1,1,1),size_hint=(None,None),size=(self.unit2*2,self.unit2))
-                grid.add_widget(lbl)
-        percent = (matches/total_cells)*100
-        self.log_label.text = f"{t1}+{t2}\n[b]Result: {result_geno}[/b]\nChance: {percent:.1f}%"
+            grid.add_widget(Label(text=gamete,bold=True,color=(.7,.7,.7,1),size_hint_y=None,height=self.unit2))
+        cells = 16
+        counts = {geno: 0 for geno in genotypes}
 
-        if hasattr(self,"table_container"):
-            Animation.stop_all(self.table_container)
-            self.remove_widget(self.table_container)
+        for r in g1:
+            grid.add_widget(Label(text=r,bold=True,color=(.7,.7,.7,1),size_hint_x=None,width=self.unit2*2))
+            for i in g2:
+                c = "".join(sorted(r[0]+i[0]))
+                h = "".join(sorted(r[1]+i[1]))
+                cellgeno = c+h
+                if cellgeno in counts:
+                    counts[cellgeno] += 1
+                    cellcolor = colormap[cellgeno]['rgba']
+                else:
+                    cellcolor = (1,1,1,1)
+                label = Label(text=cellgeno,color=cellcolor,bold=(cellgeno in counts),size_hint=(None,None),size=(self.unit2*2,self.unit2))
+                grid.add_widget(label)
 
-        self.table_container = Scatter(size_hint=(None,None),do_rotation=False,do_translation=False,do_scale=False,opacity=1)
-        self.table_container.add_widget(grid)
-        self.add_widget(self.table_container,index=len(self.children))
+        log = f"[b]{t1}[/b] x [b]{t2}[/b]\n"
+        for geno in genotypes:
+            percent = (counts[geno]/cells)*100
+            log += f"[color=#{colormap[geno]['hex']}][b]{geno}[/b][/color] spawned | chance: {percent:.1f}%\n"
+        self.loglabel.text = log.strip()
 
-        def finalize_table(dt):
-            self.table_container.size = grid.size
-            self.table_container.center = (self.width/2,self.height/2)
-        Clock.schedule_once(finalize_table)
+        if hasattr(self,"table"):
+            Animation.stop_all(self.table)
+            self.remove_widget(self.table)
 
-        def start_fade(dt):
-            anim = Animation(opacity=0,duration=2)
-            anim.bind(on_complete=lambda *x: self.remove_widget(self.table_container) if hasattr(self,"table_container") else None)
-            anim.start(self.table_container)
-        Clock.schedule_once(start_fade,5)
+        self.table = Scatter(size_hint=(None,None),do_rotation=False,do_translation=False,do_scale=False,opacity=1)
+        self.table.add_widget(grid)
+        self.add_widget(self.table,index=len(self.children))
 
-    def breed_new_seed(self,m1,m2):
-        new_c = crossover(m1.color_genes,m2.color_genes)
-        new_h = crossover(m1.height_genes,m2.height_genes)
-        result_genotype = new_c+new_h
-        self.update_punnett_table(m1,m2,result_genotype)
-        child = plantwidget(plantmodel(new_c,new_h))
-        child.center = (self.crusher.center_x+random.randint(1,round(self.unit)),self.crusher.y-self.unit*2+random.randint(1,round(self.unit)))
-        self.add_widget(child)
+        def finalize(dt):
+            self.table.size = grid.size
+            self.table.center = (self.width/2,self.height/2)
+        Clock.schedule_once(finalize)
+
+        def fade(dt):
+            anim = Animation(opacity=0,duration=3)
+            anim.bind(on_complete=lambda *x: self.remove_widget(self.table) if hasattr(self,"table") else None)
+            anim.start(self.table)
+        Clock.schedule_once(fade,6)
+
+    def breed(self,m1,m2):
+        if m1.test is not None:
+            test = m1.test
+        elif m2.test is not None:
+            test = m2.test
+        else:
+            plantmodel.counter += 1
+            test = plantmodel.counter
+        m1.test = test
+        m2.test = test
+
+        n = min(1,math.floor(math.sqrt(random.randint(1,19)/2)))
+        spawned = []
+        for z in range(n):
+            newc = crossover(m1.colorgenes,m2.colorgenes)
+            newh = crossover(m1.heightgenes,m2.heightgenes)
+            child = plantmodel(newc,newh,parents=(m1.id,m2.id),test=test)
+            self.history[child.id] = child
+            spawned.append(child)
+            widget = plantwidget(child)
+            widget.center = (self.crusher.center_x+random.randint(-50,50),self.crusher.y-80+random.randint(-40,40))
+            self.add_widget(widget,index=2)
+        uniquelist = list(set([i.colorgenes+i.heightgenes for i in spawned]))
+        self.tableupdate(m1,m2,uniquelist)
 
 class app(App):
     def build(self):
