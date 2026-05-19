@@ -1,38 +1,47 @@
-name: Build APK
+name: build apk
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout repo
+        uses: actions/checkout@v4
 
-      # python deps cache (pip wheels)
+      - name: debug repo
+        run: |
+          echo "repo root"
+          ls -la
+          echo "find main file"
+          find . -name main.py
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install buildozer cython
+
       - name: cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
 
-      # buildozer + python-for-android cache
       - name: cache buildozer
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.buildozer
-            ~/.buildozer
+          path: ~/.buildozer
           key: buildozer-${{ runner.os }}-${{ hashFiles('**/buildozer.spec') }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
 
-      # android gradle cache (biggest speed boost)
       - name: cache gradle
         uses: actions/cache@v4
         with:
@@ -40,28 +49,23 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/buildozer.spec') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
 
-      # optional: android sdk cache (huge but unstable if abused)
-      - name: cache android sdk
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.android
-            ~/Android
-          key: android-${{ runner.os }}
-          restore-keys: |
-            android-${{ runner.os }}-
+      - name: fix build dir
+        run: |
+          rm -rf ~/.buildozer/android/app
+          mkdir -p ~/.buildozer/android/app
+          cp -r . ~/.buildozer/android/app
 
-      - name: Build Release APK
-        uses: digreatbrian/buildozer-action@v2
-        with:
-          python-version: 3.11
-          buildozer-cmd: buildozer -v android debug
+      - name: build apk
+        run: |
+          buildozer -v android debug
 
-      - name: Upload APK Artifact
+      - name: show output
+        run: |
+          ls -la bin || true
+
+      - name: upload apk
         uses: actions/upload-artifact@v4
         with:
-          name: debug
-          path: "./bin/*.apk"
+          name: apk
+          path: bin/*.apk
