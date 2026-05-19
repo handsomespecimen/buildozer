@@ -13,6 +13,12 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v4
 
+      - name: set java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
       - name: debug repo
         run: |
           echo "repo root"
@@ -28,7 +34,7 @@ jobs:
             libreadline-dev libsqlite3-dev wget curl llvm \
             libncurses5-dev libncursesw5-dev xz-utils tk-dev \
             libffi-dev liblzma-dev git
-      
+
       - name: install pyenv
         run: |
           curl https://pyenv.run | bash
@@ -75,6 +81,10 @@ jobs:
           rm -rf ~/.buildozer/android/app
           mkdir -p ~/.buildozer/android/app
           cp -r . ~/.buildozer/android/app
+
+      - name: force java env
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
 
       - name: build apk
         run: |
