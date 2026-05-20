@@ -12,7 +12,6 @@ from kivy.core.window import Window
 from kivy.uix.scatter import Scatter
 from kivy.animation import Animation
 import uuid
-import networkx as nx
 
 GROWTH = 2
 
@@ -221,20 +220,22 @@ class treeclass(FloatLayout):
                     filtered.add(model.parents[0])
                     filtered.add(model.parents[1])
 
-        # glad there was an example of this online otherwise i dont know how the fuck i wouldve managed
-        G = nx.DiGraph()
-        for id in filtered:
-            G.add_node(id)
-            model = self.history.get(id)
-            if model and model.parents:
-                for parentid in model.parents:
-                    if parentid in filtered:
-                        G.add_edge(parentid,id)
-        depths = {node: 0 for node in G.nodes()}
-        for node in nx.topological_sort(G):
-            parents = list(G.predecessors(node))
-            if parents:
-                depths[node] = 1+max(depths[p] for p in parents)
+        depths = {}
+        def getdepth(nodeid):
+            if nodeid in depths:
+                return depths[nodeid]
+            model = self.history.get(nodeid)
+            if not model or not model.parents:
+                depths[nodeid] = 0
+                return 0
+            validparents = [p for p in model.parents if p in filtered]
+            if not validparents:
+                depths[nodeid] = 0
+            else:
+                depths[nodeid] = 1 + max(getdepth(p) for p in validparents)
+            return depths[nodeid]
+        for nodeid in filtered:
+            getdepth(nodeid)
 
         XSTEP = 160
         YSTEP = 160
