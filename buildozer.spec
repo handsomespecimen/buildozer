@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = plantapp
+title = Bloom
 
 # (str) Package name
-package.name = plantapp
+package.name = bloom
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.stupid
@@ -13,10 +13,10 @@ package.domain = org.stupid
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas
+source.include_exts = py,png,jpg,kv,atlas,ttf
 
 # (list) List of inclusions using pattern matching
-#source.include_patterns = assets/*,images/*.png
+source.include_patterns = assets/*,fonts/*
 
 # (list) Source files to exclude (let empty to not exclude anything)
 #source.exclude_exts = spec
@@ -29,7 +29,7 @@ source.include_exts = py,png,jpg,kv,atlas
 #source.exclude_patterns = license,images/*/*.jpg
 
 # (str) Application versioning (method 1)
-version = 0.2
+version = 1.2.2
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -44,10 +44,10 @@ requirements = python3,kivy
 # requirements.source.kivy = ../../kivy
 
 # (str) Presplash of the application
-#presplash.filename = %(source.dir)s/assets/icon.png
+presplash.filename = %(source.dir)s/assets/icon.png
 
 # (str) Icon of the application
-#icon.filename = %(source.dir)s/assets/icon.png
+icon.filename = %(source.dir)s/assets/icon.png
 
 # (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
 orientation = landscape
@@ -80,17 +80,17 @@ fullscreen = 1
 # red, blue, green, black, white, gray, cyan, magenta, yellow, lightgray,
 # darkgray, grey, lightgrey, darkgrey, aqua, fuchsia, lime, maroon, navy,
 # olive, purple, silver, teal.
-android.presplash_color = black
+android.presplash_color = #004000
 
 # (string) Presplash animation using Lottie format.
 # see https://lottiefiles.com/ for examples and https://airbnb.design/lottie/
 # for general documentation.
 # Lottie files can be created using various tools, like Adobe After Effect or Synfig.
-#android.presplash_lottie = "assets/lottie.json"
+android.presplash_lottie = %(source.dir)s/assets/lottie.json
 
 # (str) Adaptive icon of the application (used if Android API level is 26+ at runtime)
-#icon.adaptive_foreground.filename = %(source.dir)s/assets/iconrounded.png
-#icon.adaptive_background.filename = %(source.dir)s/assets/iconsquared.png
+icon.adaptive_foreground.filename = %(source.dir)s/assets/icon.png
+icon.adaptive_background.filename = %(source.dir)s/assets/bg.png
 
 # (list) Permissions
 android.permissions = WAKE_LOCK
