@@ -13,6 +13,8 @@ from kivy.uix.scatter import Scatter
 from kivy.animation import Animation
 import uuid
 
+VERSION = "v1.2.2"
+
 GROWTH = 2
 
 RCOLORS = [
@@ -61,7 +63,7 @@ class plantwidget(Widget):
         self.size_hint = (None,None)
 
         self.genelabel = Label(text=f"{self.model.colorgenes}\n{self.model.heightgenes}",color=(1,1,1,.7),font_size="10sp",halign="center",markup=True)
-        self.add_widget(self.genelabel,index=967)
+        self.add_widget(self.genelabel,index=67420)
 
         self.canvasthing = InstructionGroup()
         self.canvas.add(self.canvasthing)
@@ -129,24 +131,33 @@ class plantwidget(Widget):
         return super().on_touch_up(touch)
 
 class tnode(Widget):
-    def __init__(self,model,**kwargs):
+    def __init__(self,model,unit,**kwargs):
         super().__init__(**kwargs)
         self.size = (110,60)
         self.size_hint = (None,None)
         self.model = model
+        self.unit = unit
         with self.canvas.before:
             Color(.12,.12,.12,1)
             RoundedRectangle(pos=self.pos,size=self.size,radius=[4])
             Color(.3,.3,.3,1)
             Line(rounded_rectangle=(self.x,self.y,self.width,self.height,4),width=1.5)
-            Color(*model.phenocolor)
+            Color(.2,.7,.2,1)
+            Ellipse(pos=(self.x-4+1-12,self.y+24),size=(18,9))
+            Ellipse(pos=(self.x-4+1+6,self.y+28),size=(18,9))
             if model.phenoheight == 1.4:
-                Ellipse(pos=(self.x+8,self.y+self.height-16),size=(8,8))
+                Line(points=[self.x-4+6,self.y+self.height-16+6,self.x-4+6,self.y],width=2)
             else:
-                Rectangle(pos=(self.x+8,self.y+self.height-16),size=(8,8))
+                Line(points=[self.x-4+6,self.y+self.height-16+6,self.x-4+6,self.y+15],width=2)
+            Color(*model.phenocolor)
+            for i in range(0,360,72):
+                rad = math.radians(i)
+                Ellipse(pos=(self.x-4+6+8*math.cos(rad)-7,self.y+self.height-16+6+8*math.sin(rad)-7),size=(14,14))
+            Color(.9,.8,0,1)
+            Ellipse(pos=(self.x-4,self.y+self.height-16),size=(12,12))
 
-        genes = f"[b]{model.colorgenes}[/b] | {model.heightgenes}\n[size=10sp]ID: {model.id}[/size]"
-        self.label = Label(text=genes,markup=True,pos=self.pos,size=self.size,halign="center",valign="middle",font_size="13sp")
+        genes = f"[b]{model.colorgenes}{model.heightgenes}[/b]\n[size=10sp]ID: {model.id}[/size]"
+        self.label = Label(text=genes,markup=True,pos=self.pos,size=self.size,halign="center",valign="middle",font_size="14sp")
         self.label.bind(size=self.label.setter('text_size'))
         self.add_widget(self.label)
         self.bind(pos=self.update,size=self.update)
@@ -163,10 +174,11 @@ class tnode(Widget):
         self.label.pos = self.pos
 
 class treeclass(FloatLayout):
-    def __init__(self,history,**kwargs):
+    def __init__(self,history,unit,**kwargs):
         super().__init__(**kwargs)
         self.history = history
         self.testidx = 0
+        self.unit = unit
         self.npos = {}
 
         self.scatter = Scatter(do_rotation=False,do_scale=True,auto_bring_to_front=False,size_hint=(None,None),size=(40000,40000))
@@ -202,7 +214,7 @@ class treeclass(FloatLayout):
             return
         tests = sorted(list(set(i.test for i in self.history.values() if i.test is not None)))
         if not tests:
-            self.scatter.add_widget(Label(text="crush some plants to start a test",center=(20000,20000),font_size="20sp"))
+            self.scatter.add_widget(Label(text="crush some plants to start a test",center=(20000,20000),font_size=f"{self.unit*.5}sp"))
             return
         self.testidx = min(self.testidx,len(tests)-1)
         test = tests[self.testidx]
@@ -232,7 +244,7 @@ class treeclass(FloatLayout):
             if not validparents:
                 depths[nodeid] = 0
             else:
-                depths[nodeid] = 1 + max(getdepth(p) for p in validparents)
+                depths[nodeid] = 1+max(getdepth(p) for p in validparents)
             return depths[nodeid]
         for nodeid in filtered:
             getdepth(nodeid)
@@ -247,14 +259,12 @@ class treeclass(FloatLayout):
             d = depths.get(id,0)
             levels.setdefault(d,[]).append(id)
         self.npos = {}
-
         for d in sorted(levels.keys()):
             ids = levels[d]
             groups = {}
             for id in ids:
                 model = self.history[id]
                 groups.setdefault(tuple(sorted(model.parents)) if model.parents else ("root",id),[]).append(id)
-
             ideals = {}
             for p,members in groups.items():
                 if p[0] == "root":
@@ -265,7 +275,6 @@ class treeclass(FloatLayout):
                         ideals[p] = (self.npos[p1][0]+self.npos[p2][0])/2
                     else:
                         ideals[p] = ROOTX
-
             currentx = 0
             offsets = {}
             for idx,p in enumerate(sorted(groups.keys(),key=lambda k: ideals[k])):
@@ -275,14 +284,13 @@ class treeclass(FloatLayout):
                 for member in members:
                     offsets[member] = currentx
                     currentx += XSTEP
-
             if offsets:
                 totalwidth = currentx-XSTEP
                 startx = ROOTX-(totalwidth/2)
                 for id,offset in offsets.items():
                     y = ROOTY-(d*YSTEP)
                     x = startx+offset
-                    node = tnode(self.history[id],pos=(x,y))
+                    node = tnode(self.history[id],self.unit,pos=(x,y))
                     self.npos[id] = (x+55,y)
                     self.scatter.add_widget(node)
 
@@ -319,14 +327,18 @@ class game(FloatLayout):
         self.loglabel = Label(text="\n\n[b]CRUSHER OF AGONY AND DESPAIR --->[/b]\nCrush a pollinated plant\nto see genetic odds",markup=True,size_hint=(None,None),halign="right")
         self.loglabel.bind(texture_size=self.loglabel.setter('size'))
 
+        self.brandinglabel = Label(text=VERSION,markup=True,size_hint=(None,None),halign="left")
+        self.brandinglabel.bind(texture_size=self.brandinglabel.setter('size'))
+
+        self.nplots = 16
         self.plots = []
-        self.plotoccupants = [None]*8
+        self.plotoccupants = [None]*self.nplots
         self.bind(size=self.update,pos=self.update)
         with self.canvas.before:
             Color(0,.2,0,1)
             self.bg = Rectangle(size=self.size,pos=self.pos)
             Color(.4,.3,.2,1)
-            for i in range(8):
+            for i in range(self.nplots):
                 r = Rectangle()
                 self.plots.append(r)
         self.crusher = Widget(size_hint=(None,None))
@@ -337,22 +349,23 @@ class game(FloatLayout):
         self.buybtn = Button(text="SPAWN SEED",size_hint=(None,None),size=(140,50),background_color=(0,.6,1,1),bold=True)
         self.buybtn.bind(on_release=self.spawn)
         self.treeview = None
-        self.treebtn = Button(text="VIEW GENE TREE",size_hint=(None,None),size=(140,50),pos=(20,Window.height-70))
+        self.treebtn = Button(text="VIEW TREE",size_hint=(None,None),size=(140,50),pos=(20,Window.height-70))
         self.treebtn.bind(on_release=self.treetoggle)
 
         self.add_widget(self.buybtn)
         self.add_widget(self.infolabel)
         self.add_widget(self.loglabel)
         self.add_widget(self.treebtn,index=0)
+        self.add_widget(self.brandinglabel,index=1)
 
     def treetoggle(self,*args):
         if self.treeview:
             self.remove_widget(self.treeview)
             self.treeview = None
-            self.treebtn.text = "VIEW GENE TREE"
+            self.treebtn.text = "VIEW TREE"
         else:
-            self.treeview = treeclass(self.history,size_hint=(1,1),pos=(0,0))
-            self.add_widget(self.treeview,index=1)
+            self.treeview = treeclass(self.history,self.unit,size_hint=(1,1),pos=(0,0))
+            self.add_widget(self.treeview,index=2)
             self.treebtn.text = "CLOSE TREE"
 
     def update(self,*args):
@@ -360,13 +373,17 @@ class game(FloatLayout):
         self.bg.pos = self.pos
         w,h = self.width,self.height
         self.unit = h*.08
+        self.wunit = w*.04
         plotsize = self.unit*1.2
         spacing = self.unit*.5
         y = (h-(plotsize*4+spacing*4))*.9
         plotx = w*.05
         plotx2 = plotx+plotsize+spacing
+        plotx3 = plotx2+plotsize+spacing
+        plotx4 = plotx3+plotsize+spacing
+        xs = [plotx,plotx2,plotx3,plotx4]
         for i,rect in enumerate(self.plots):
-            rowx = plotx if i < 4 else plotx2
+            rowx = xs[i//4]
             rect.size = (plotsize,plotsize)
             rect.pos = (rowx,y+i%4*(plotsize+spacing))
 
@@ -377,21 +394,24 @@ class game(FloatLayout):
         self.crush.size = self.crusher.size
 
         self.buybtn.size = (self.unit*3.5,self.unit*.9)
-        self.buybtn.font_size = f"{self.unit*.22}sp"
+        self.buybtn.font_size = f"{max(10,self.wunit*.22)}sp"
         self.buybtn.pos = (w-self.buybtn.width-self.unit*.3,self.unit*.3)
         self.treebtn.size = (self.unit*3.5,self.unit*.9)
-        self.treebtn.font_size = f"{self.unit*.22}sp"
+        self.treebtn.font_size = f"{max(10,self.wunit*.22)}sp"
         self.treebtn.pos = (w-self.buybtn.width-self.unit*.3,self.unit*1.3)
         self.infolabel.text_size = (None,None)
-        self.infolabel.font_size = max(12,self.unit*.25)
+        self.infolabel.font_size = max(12,self.wunit*.25)
         self.infolabel.texture_update()
         self.infolabel.x = w*.02
         self.infolabel.y = self.unit*.2
         self.loglabel.text_size = (None,None)
-        self.loglabel.font_size = max(14,self.unit*.28)
+        self.loglabel.font_size = max(14,self.wunit*.28)
         self.loglabel.texture_update()
         self.loglabel.right = self.crusher.x-(self.unit*.5)
         self.loglabel.top = self.crusher.top+(self.unit*.5)
+        self.brandinglabel.text_size = (None,None)
+        self.brandinglabel.font_size = max(9,self.wunit*.25)
+        self.brandinglabel.texture_update()
 
         if hasattr(self,"table"):
             self.table.center = (w/2,h/2)
@@ -402,7 +422,7 @@ class game(FloatLayout):
         self.history[model.id] = model
         pw = plantwidget(model)
         pw.center = (self.width*.7+random.randint(1,50),100+random.randint(1,50))
-        self.add_widget(pw,index=2)
+        self.add_widget(pw,index=3)
 
     def freeplot(self,plant):
         for i,occupant in enumerate(self.plotoccupants):
@@ -509,7 +529,7 @@ class game(FloatLayout):
         m1.test = test
         m2.test = test
 
-        n = min(1,math.floor(math.sqrt(random.randint(1,19)/2)))
+        n = random.choices([1,2,3,4],weights=[50,35,10,5])[0]
         spawned = []
         for z in range(n):
             newc = crossover(m1.colorgenes,m2.colorgenes)
@@ -519,7 +539,7 @@ class game(FloatLayout):
             spawned.append(child)
             widget = plantwidget(child)
             widget.center = (self.crusher.center_x+random.randint(-50,50),self.crusher.y-80+random.randint(-40,40))
-            self.add_widget(widget,index=2)
+            self.add_widget(widget,index=3)
         uniquelist = list(set([i.colorgenes+i.heightgenes for i in spawned]))
         self.tableupdate(m1,m2,uniquelist)
 
